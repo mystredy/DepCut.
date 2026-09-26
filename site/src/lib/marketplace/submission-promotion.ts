@@ -1,3 +1,4 @@
+import { DEPCUT_CANONICAL } from "@/cut/lib/hosts";
 import { prisma } from "@/lib/prisma";
 import { notifyTelegram } from "@/lib/telegram/notify";
 
@@ -84,7 +85,7 @@ export async function tryPromoteSubmission(submissionId: string): Promise<void> 
 
   const submitterName = submission.user.displayName || submission.user.name || submission.user.email;
   const now = new Date();
-  const siteOrigin = (process.env.BETTER_AUTH_URL?.trim() || "http://localhost:3000").replace(/\/$/, "");
+  const siteOrigin = process.env.VERCEL ? DEPCUT_CANONICAL : "http://localhost:3000";
 
   const lines = [
     "🆕 New Submission Pending Review",
