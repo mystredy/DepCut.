@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -210,10 +211,16 @@ const REPURPOSE_TABS: { key: RepurposeTab; label: string }[] = [
   { key: "calendar", label: "Calendar" },
 ];
 
+const SECTION_KEYS = SECTIONS.map((s) => s.key);
+
 export default function StudioSettingsPage({ params }: { params: Promise<{ username: string }> }) {
   const { username } = use(params);
   const { data, isLoading } = useStudioByUsername(username);
-  const [section, setSection] = useState<Section>("setup");
+  const searchParams = useSearchParams();
+  const initialSection = searchParams.get("section");
+  const [section, setSection] = useState<Section>(
+    SECTION_KEYS.includes(initialSection as Section) ? (initialSection as Section) : "setup"
+  );
   const [repurposeTab, setRepurposeTab] = useState<RepurposeTab>("connections");
 
   if (isLoading) return null;

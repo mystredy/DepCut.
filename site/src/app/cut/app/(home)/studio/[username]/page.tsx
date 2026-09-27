@@ -270,6 +270,12 @@ export default function StudioPage({ params }: { params: Promise<{ username: str
                     <Pencil className="size-3.5" />
                     Studio settings
                   </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => router.push(`${base}/studio/${studio.username}/settings?section=repurpose`)}
+                  >
+                    <Share2 className="size-3.5" />
+                    Social accounts
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
