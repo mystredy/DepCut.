@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ExternalLink, Eye, Plus, Send } from "lucide-react";
+import { ExternalLink, Eye, Film, Plus, Send } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -90,13 +90,35 @@ function SubmissionRow({ item }: { item: AdminSubmission }) {
 
   return (
     <div className="flex items-center justify-between gap-4 rounded-2xl border bg-card p-4">
-      <div className="min-w-0">
-        <p className="truncate text-sm font-semibold">{item.title}</p>
-        <p className="mt-0.5 truncate text-xs text-muted-foreground">
-          {item.submitterName} · {item.submitterEmail}
-          {item.category && ` · ${item.category.emoji} ${item.category.name}`}
-          {item.studio && ` · posted to ${item.studio.name}`}
-        </p>
+      <div className="flex min-w-0 items-center gap-3">
+        <span className="relative size-12 shrink-0 overflow-hidden rounded-lg bg-black">
+          {item.hasVideo ? (
+            // Same seeked-<video> thumbnail trick used across the app (drop
+            // picker, studio grid) — no separate submission thumbnail
+            // endpoint covers a project-linked submission, but this route
+            // already does, for either kind.
+            <video
+              src={`/api/submissions/${item.id}/video`}
+              muted
+              playsInline
+              preload="metadata"
+              onLoadedMetadata={(e) => {
+                e.currentTarget.currentTime = 0.1;
+              }}
+              className="absolute inset-0 size-full object-cover"
+            />
+          ) : (
+            <Film className="absolute inset-1/2 size-4 -translate-x-1/2 -translate-y-1/2 text-white/40" />
+          )}
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold">{item.title}</p>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+            {item.submitterName} · {item.submitterEmail}
+            {item.category && ` · ${item.category.emoji} ${item.category.name}`}
+            {item.studio && ` · posted to ${item.studio.name}`}
+          </p>
+        </div>
       </div>
       {item.publishingid ? (
         <Button size="sm" variant="outline" className="shrink-0" onClick={() => setViewOpen(true)}>
