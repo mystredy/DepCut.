@@ -8,6 +8,7 @@ import {
   ArrowRight,
   Calendar as CalendarIcon,
   Camera,
+  ChevronDown,
   Info,
   Link2,
   Loader2,
@@ -129,15 +130,19 @@ const PLATFORM_CARD_COPY: Record<string, { title: string; description: string; c
   youtube: { title: "YouTube Channel", description: "Connect your official Google YouTube channel.", connectLabel: "Connect Google" },
 };
 
-// The Account metrics tiles below the platform cards. No connection today
-// stores a follower/subscriber/view total (StudioConnection only carries
-// identity + token fields), so every tile reads "—" until that's wired up —
-// an honest "not tracked yet", not a fake number.
+// The Account metrics tiles below the platform cards — one follower/subscriber
+// count per connectable platform. No connection today stores that total
+// (StudioConnection only carries identity + token fields), so every tile
+// reads "—" until that's wired up — an honest "not tracked yet", not a fake
+// number.
 const ACCOUNT_METRIC_TILES: { key: string; label: string }[] = [
   { key: "igFollowers", label: "IG Followers" },
   { key: "fbFollowers", label: "FB Followers" },
+  { key: "threadsFollowers", label: "Threads Followers" },
+  { key: "tiktokFollowers", label: "TikTok Followers" },
+  { key: "xFollowers", label: "X Followers" },
+  { key: "snapchatFollowers", label: "Snapchat Followers" },
   { key: "ytSubscribers", label: "YT Subscribers" },
-  { key: "ytTotalViews", label: "YT Total Views" },
 ];
 
 // Brand-colored full-width Connect button per platform, matched to each
@@ -799,6 +804,7 @@ function ConnectionsSection({ studioId }: { studioId: string }) {
   const disconnect = useDisconnectStudioConnection(studioId);
   const rename = useRenameStudioConnection(studioId);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [platformsOpen, setPlatformsOpen] = useState(true);
   const [connectPlatform, setConnectPlatform] = useState<string | null>(null);
   const [accountName, setAccountName] = useState("");
   const [renaming, setRenaming] = useState<StudioConnection | null>(null);
@@ -842,8 +848,15 @@ function ConnectionsSection({ studioId }: { studioId: string }) {
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-sm font-semibold">Platforms</p>
-        {connections.isLoading ? (
+        <button
+          type="button"
+          onClick={() => setPlatformsOpen((v) => !v)}
+          className="flex w-full items-center justify-between gap-2 text-left"
+        >
+          <p className="text-sm font-semibold">Platforms</p>
+          <ChevronDown className={cn("size-4 text-muted-foreground transition-transform", platformsOpen && "rotate-180")} />
+        </button>
+        {!platformsOpen ? null : connections.isLoading ? (
           <div className="mt-3 rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
             Loading…
           </div>
