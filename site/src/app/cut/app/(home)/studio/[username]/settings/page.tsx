@@ -129,6 +129,17 @@ const PLATFORM_CARD_COPY: Record<string, { title: string; description: string; c
   youtube: { title: "YouTube Channel", description: "Connect your official Google YouTube channel.", connectLabel: "Connect Google" },
 };
 
+// The Account metrics tiles below the platform cards. No connection today
+// stores a follower/subscriber/view total (StudioConnection only carries
+// identity + token fields), so every tile reads "—" until that's wired up —
+// an honest "not tracked yet", not a fake number.
+const ACCOUNT_METRIC_TILES: { key: string; label: string }[] = [
+  { key: "igFollowers", label: "IG Followers" },
+  { key: "fbFollowers", label: "FB Followers" },
+  { key: "ytSubscribers", label: "YT Subscribers" },
+  { key: "ytTotalViews", label: "YT Total Views" },
+];
+
 // Brand-colored full-width Connect button per platform, matched to each
 // platform's own brand color.
 const CONNECT_BUTTON_STYLE: Record<string, string> = {
@@ -966,6 +977,19 @@ function ConnectionsSection({ studioId }: { studioId: string }) {
             })}
           </div>
         )}
+      </div>
+
+      <div>
+        <p className="text-sm font-semibold">Account metrics</p>
+        <p className="text-xs text-muted-foreground">Quick summary of stats from your connected accounts.</p>
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {ACCOUNT_METRIC_TILES.map((m) => (
+            <div key={m.key} className="rounded-xl border bg-muted/30 p-3 text-center">
+              <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">{m.label}</p>
+              <p className="mt-1 text-lg font-semibold">—</p>
+            </div>
+          ))}
+        </div>
       </div>
 
       <Dialog open={connectPlatform !== null} onOpenChange={(open) => !open && closeConnectDialog()}>
