@@ -11,7 +11,7 @@ import { useDrop } from "@/queries/drop";
 import { PLATFORM_ICONS } from "@/lib/marketplace/platform-icons";
 import { cn } from "@/lib/utils";
 import { type AdminSubmission, useAdminSubmissions, useTagSubmissionDrop } from "@/queries/admin";
-import { useStudioDrops, useStudios, type StudioSummary } from "@/queries/studio";
+import { studioAvatarUrl, useStudioDrops, useStudios, type StudioSummary } from "@/queries/studio";
 
 type Tab = "all" | "tagged" | "need-tag";
 
@@ -210,17 +210,28 @@ function StudioPicker({
   }
   return (
     <div className="grid max-h-64 grid-cols-1 gap-1.5 overflow-y-auto">
-      {studios.map((s) => (
-        <button
-          key={s.id}
-          type="button"
-          onClick={() => onPick(s)}
-          className="flex items-center justify-between rounded-lg border px-3 py-2 text-left text-sm hover:bg-muted"
-        >
-          <span className="font-medium">{s.name}</span>
-          <span className="text-xs text-muted-foreground">@{s.username}</span>
-        </button>
-      ))}
+      {studios.map((s) => {
+        const avatarUrl = studioAvatarUrl(s);
+        return (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => onPick(s)}
+            className="flex items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left text-sm hover:bg-muted"
+          >
+            <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-bold text-muted-foreground">
+              {avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element -- small avatar from R2, not a Next asset
+                <img src={avatarUrl} alt="" className="size-full object-cover" />
+              ) : (
+                s.name.charAt(0).toUpperCase()
+              )}
+            </span>
+            <span className="min-w-0 flex-1 truncate font-medium">{s.name}</span>
+            <span className="shrink-0 text-xs text-muted-foreground">@{s.username}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
