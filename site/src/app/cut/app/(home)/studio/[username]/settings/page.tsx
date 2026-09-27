@@ -145,9 +145,9 @@ type Section = "setup" | "access" | "history" | "repurpose";
 
 const SECTIONS: { key: Section; label: string }[] = [
   { key: "setup", label: "Studio setup" },
-  { key: "access", label: "Studio access" },
-  { key: "history", label: "Management history" },
   { key: "repurpose", label: "Social accounts" },
+  { key: "history", label: "Activity" },
+  { key: "access", label: "Studio access" },
 ];
 
 type RepurposeTab = "connections" | "workflow" | "calendar";
@@ -188,14 +188,14 @@ export default function StudioSettingsPage({ params }: { params: Promise<{ usern
         <h1 className="truncate text-lg font-semibold tracking-tight">{studio.name} — Settings</h1>
       </div>
 
-      <div className="-mx-6 mt-4 flex gap-1 overflow-x-auto border-b border-border px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="-mx-6 mt-4 flex gap-0.5 overflow-x-auto border-b border-border px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {SECTIONS.map((s) => (
           <button
             key={s.key}
             type="button"
             onClick={() => setSection(s.key)}
             className={cn(
-              "shrink-0 whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors",
+              "shrink-0 whitespace-nowrap border-b-2 px-2 py-2 text-sm font-medium transition-colors",
               section === s.key
                 ? "border-foreground text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground"
