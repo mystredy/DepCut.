@@ -918,7 +918,7 @@ function ConnectionsSection({ studioId }: { studioId: string }) {
                     <p className="truncate text-sm font-semibold">{c ? c.accountName : copy.title}</p>
                     {!c && <p className="truncate text-xs text-muted-foreground">{copy.description}</p>}
                     {health && (
-                      <p className={cn("mt-1 text-[11px]", health.ok ? "text-muted-foreground" : "text-destructive")}>
+                      <p className={cn("truncate text-xs", health.ok ? "text-muted-foreground" : "text-destructive")}>
                         {health.label}
                       </p>
                     )}
