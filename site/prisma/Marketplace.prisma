@@ -157,7 +157,6 @@ model Submission {
   updatedAt         DateTime          @updatedAt
   uploads           Upload[]
   assets            SubmissionAsset[]
-  workspaceLinks    SubmissionWorkspaceLink[]
 
   @@index([userId, createdAt])
   @@index([taskId])
@@ -200,29 +199,30 @@ model SubmissionAsset {
   @@map("submission_asset")
 }
 
-// A creator's linked external editing workspace for one Submission — the
-// Submit Project page's Collaboration Hub (submit-project/[id]/page.tsx),
-// currently local-only state (Workspace/INITIAL_WORKSPACES) with no
-// persistence. provider is one of that page's fixed integration ids (capcut,
+// A creator's linked external editing workspace — the Submit Project page's
+// Collaboration Hub (submit-project/[id]/page.tsx). Owned by the user, not a
+// single submission: connect once and every submission's workspace picker
+// (Submission.spaceid) can select it, rather than reconnecting per
+// submission. provider is one of that page's fixed integration ids (capcut,
 // canva, veed, premiere, davinci, finalcut, frameio, postlab, lucidlink) —
 // kept as free text rather than an enum so the page can add a new one
 // without a migration. No password field on purpose: the Connect Workspace
 // dialog never asks for one — storing a real third-party service password
 // here would mean holding a credential this app has no business keeping.
 // Real access to a linked workspace belongs behind OAuth, not a form field.
-model SubmissionWorkspaceLink {
-  id            String     @id @default(cuid())
-  submissionId  String
-  submission    Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+model UserWorkspaceLink {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   provider      String
   workspaceName String
   editorEmail   String?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  @@unique([submissionId, provider])
-  @@index([submissionId])
-  @@map("submission_workspace_link")
+  @@unique([userId, provider])
+  @@index([userId])
+  @@map("user_workspace_link")
 }
 
 // The Pro Verification Suite's publishing package for a submission: the

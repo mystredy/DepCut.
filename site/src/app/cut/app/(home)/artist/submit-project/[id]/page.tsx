@@ -54,6 +54,7 @@ import {
   useTranscribeSubmissionVideo,
   useUploadSubmissionAsset,
   useVerifyEditCode,
+  useWorkspaceLinks,
 } from "@/queries/submissions";
 import { MEDIA_CORS } from "@/cut/lib/mediaCors";
 import { formatCredits } from "@/lib/credits/format-credits";
@@ -314,9 +315,10 @@ export default function SubmitProjectEditorPage() {
   const [couponMessage, setCouponMessage] = useState<string | null>(null);
   const [couponError, setCouponError] = useState<string | null>(null);
 
-  // Workspace linking — "connected" is hydrated from submission.workspaceLinks
-  // below (real rows, see SubmissionWorkspaceLink), same as every other field
-  // this page hydrates once and then owns until its own edit round-trips.
+  // Workspace linking — account-level (see UserWorkspaceLink): connected
+  // once, reused across every submission's picker below. "connected" is
+  // hydrated from workspaceLinksQuery once it loads, independent of this
+  // submission's own hydration.
   const [workspaces, setWorkspaces] = useState<Workspace[]>(INITIAL_WORKSPACES);
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState("");
   const [connectOpen, setConnectOpen] = useState(false);
@@ -325,8 +327,9 @@ export default function SubmitProjectEditorPage() {
   const [memberEmail, setMemberEmail] = useState("");
   const [linking, setLinking] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
-  const connectWorkspace = useConnectWorkspace(id);
-  const disconnectWorkspace = useDisconnectWorkspace(id);
+  const workspaceLinksQuery = useWorkspaceLinks();
+  const connectWorkspace = useConnectWorkspace();
+  const disconnectWorkspace = useDisconnectWorkspace();
   const verifyEditCode = useVerifyEditCode(id);
   const transcribeVideo = useTranscribeSubmissionVideo(id);
 
@@ -351,17 +354,27 @@ export default function SubmitProjectEditorPage() {
     setWatermarkText(submission.watermarkText ?? "");
     setBurnInCaptions(submission.burnInCaptions);
     setCouponCode(submission.editCode ?? "");
-    if (submission.workspaceLinks.length > 0) {
+  }, [submission]);
+
+  // Same "hydrate once" pattern as above, keyed off the account-level
+  // workspace links query instead — it resolves independently of (and
+  // usually after) the submission draft itself.
+  const workspacesHydratedRef = useRef(false);
+  useEffect(() => {
+    const links = workspaceLinksQuery.data?.links;
+    if (workspacesHydratedRef.current || !links) return;
+    workspacesHydratedRef.current = true;
+    if (links.length > 0) {
       setWorkspaces((prev) =>
         prev.map((w) => {
-          const link = submission.workspaceLinks.find((l) => l.provider === w.id);
+          const link = links.find((l) => l.provider === w.id);
           return link
             ? { ...w, connected: true, connectedEmail: link.editorEmail ?? "", workspaceName: link.workspaceName }
             : w;
         })
       );
     }
-  }, [submission]);
+  }, [workspaceLinksQuery.data]);
 
   // Debounced autosave — batches whatever changed in the last 600ms into one
   // PATCH instead of one per keystroke. Only fires while still a draft.

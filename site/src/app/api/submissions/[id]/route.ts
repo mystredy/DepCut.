@@ -20,7 +20,6 @@ export const GET = withDepCutAuth(async (request, context: RouteContext) => {
       studio: { select: { id: true, name: true } },
       category: { select: { emoji: true, name: true } },
       project: { select: { name: true } },
-      workspaceLinks: true,
     },
     where: { id },
   });
@@ -127,7 +126,6 @@ export const PATCH = withDepCutAuth(async (request, context: RouteContext) => {
       assets: true,
       studio: { select: { id: true, name: true } },
       category: { select: { emoji: true, name: true } },
-      workspaceLinks: true,
     },
     where: { id },
   });

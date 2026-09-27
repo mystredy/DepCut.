@@ -21,13 +21,15 @@ export type SubmissionAsset = {
   updatedAt: string;
 };
 
-// One connected external editing workspace (Submit Project's Collaboration
-// Hub) for a submission. provider matches one of that page's fixed
-// integration ids (capcut, canva, veed, ...). No password field — see
-// SubmissionWorkspaceLink's own doc comment.
+// One of the signed-in user's connected external editing workspaces (Submit
+// Project's Collaboration Hub). Owned by the account, not a single
+// submission — connect once, reuse across every submission's workspace
+// picker. provider matches one of that page's fixed integration ids (capcut,
+// canva, veed, ...). No password field — see UserWorkspaceLink's own doc
+// comment.
 export type WorkspaceLink = {
   id: string;
-  submissionId: string;
+  userId: string;
   provider: string;
   workspaceName: string;
   editorEmail: string | null;
@@ -104,7 +106,6 @@ export type Submission = {
   submittedAt: string | null;
   updatedAt: string;
   assets: SubmissionAsset[];
-  workspaceLinks: WorkspaceLink[];
 };
 
 // The signed-in user's own submissions, every status — feeds My Submissions'
@@ -208,32 +209,44 @@ export function useDeleteSubmission() {
   });
 }
 
-// Connects (or re-connects) one workspace integration to a submission — the
-// Collaboration Hub's Connect flow. See /api/submissions/[id]/workspace-links.
-export function useConnectWorkspace(submissionId: string) {
+export const workspaceLinksQueryKey = ["account", "workspace-links"] as const;
+
+// The signed-in user's connected editing workspaces — account-level, shared
+// by every submission's workspace picker (Submission.spaceid). See
+// /api/account/workspace-links.
+export function useWorkspaceLinks() {
+  return useQuery({
+    queryFn: () => apiFetch<{ links: WorkspaceLink[] }>("/api/account/workspace-links"),
+    queryKey: workspaceLinksQueryKey,
+  });
+}
+
+// Connects (or re-connects) one workspace integration to this account — the
+// Collaboration Hub's Connect flow.
+export function useConnectWorkspace() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: { provider: string; workspaceName: string; editorEmail?: string }) =>
-      apiFetch<{ link: WorkspaceLink }>(`/api/submissions/${submissionId}/workspace-links`, {
+      apiFetch<{ link: WorkspaceLink }>("/api/account/workspace-links", {
         body: JSON.stringify(input),
         method: "POST",
       }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: submissionQueryKey(submissionId) });
+      void queryClient.invalidateQueries({ queryKey: workspaceLinksQueryKey });
     },
   });
 }
 
-// Disconnects one workspace integration from a submission.
-export function useDisconnectWorkspace(submissionId: string) {
+// Disconnects one workspace integration from this account.
+export function useDisconnectWorkspace() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (provider: string) =>
-      apiFetch<{ ok: boolean }>(`/api/submissions/${submissionId}/workspace-links/${provider}`, {
+      apiFetch<{ ok: boolean }>(`/api/account/workspace-links/${provider}`, {
         method: "DELETE",
       }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: submissionQueryKey(submissionId) });
+      void queryClient.invalidateQueries({ queryKey: workspaceLinksQueryKey });
     },
   });
 }
