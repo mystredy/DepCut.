@@ -147,7 +147,7 @@ const SECTIONS: { key: Section; label: string }[] = [
   { key: "setup", label: "Studio setup" },
   { key: "access", label: "Studio access" },
   { key: "history", label: "Management history" },
-  { key: "repurpose", label: "Repurpose" },
+  { key: "repurpose", label: "Social accounts" },
 ];
 
 type RepurposeTab = "connections" | "workflow" | "calendar";
