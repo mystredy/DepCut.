@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, Check, FileVideo, Globe2, Link2, Loader2, Lock, Play } from "lucide-react";
+import { CalendarClock, Check, FileVideo, Globe2, Link2, Loader2, Lock, Play, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -216,6 +216,22 @@ export function DropDialog({
       setError(e instanceof Error ? e.message : "Couldn't upload that video — try again.");
       setUploadState("error");
     }
+  };
+
+  // Backs out of a picked/preloaded video (a fresh pick, not a resumed
+  // draft — see the "Replace" button) back to the empty dropzone. The Drop
+  // row startUpload already created stays behind, unposted — same as
+  // closing this dialog mid-upload; nothing publishes it.
+  const replace = () => {
+    setFile(null);
+    setPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setDropId(null);
+    setUploadState("idle");
+    setError(null);
+    setVideoPlaying(false);
   };
 
   // Preloads initialVideoUrl the moment this dialog opens for it, as if the
@@ -442,25 +458,34 @@ export function DropDialog({
                   <span className="truncate">{file?.name ?? resumeDrop?.fileName ?? "Video uploaded"}</span>
                   {file && <span className="shrink-0">{formatBytes(file.size)}</span>}
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  onClick={() => {
-                    const v = videoRef.current;
-                    if (!v) return;
-                    if (v.paused) {
-                      v.muted = false;
-                      void v.play();
-                    } else {
-                      v.pause();
-                    }
-                  }}
-                >
-                  <Play className="size-3.5" data-icon="inline-start" />
-                  {videoPlaying ? "Playing…" : "Preview"}
-                </Button>
+                <div className={cn("grid gap-2", previewUrl ? "grid-cols-2" : "grid-cols-1")}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const v = videoRef.current;
+                      if (!v) return;
+                      if (v.paused) {
+                        v.muted = false;
+                        void v.play();
+                      } else {
+                        v.pause();
+                      }
+                    }}
+                  >
+                    <Play className="size-3.5" data-icon="inline-start" />
+                    {videoPlaying ? "Playing…" : "Preview"}
+                  </Button>
+                  {/* previewUrl-only — a resumed draft's video already lives on
+                      the server, not a local pick this can back out of. */}
+                  {previewUrl && (
+                    <Button type="button" variant="outline" size="sm" onClick={replace}>
+                      <RotateCcw className="size-3.5" data-icon="inline-start" />
+                      Replace
+                    </Button>
+                  )}
+                </div>
               </div>
             ) : fetchingInitialVideo ? (
               <div className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border p-8 text-center">
