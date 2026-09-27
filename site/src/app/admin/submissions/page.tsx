@@ -413,9 +413,16 @@ function SubmissionCard({
                   <div className="space-y-2">
                     <div className="space-y-1 rounded-lg border bg-muted/20 px-2.5 py-1.5">
                       <div className="flex items-center justify-between">
-                        <label className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
-                          Quality evaluation
-                        </label>
+                        <span className="flex items-center gap-1.5">
+                          <label className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            Quality evaluation
+                          </label>
+                          {item.maxRates != null && (
+                            <span className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-semibold text-muted-foreground">
+                              Max {item.maxRates}
+                            </span>
+                          )}
+                        </span>
                         <span className="text-[11px] font-bold text-primary">
                           {score}/10 → {previewEarned} Rates
                         </span>
