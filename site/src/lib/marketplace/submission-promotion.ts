@@ -35,21 +35,25 @@ export async function tryPromoteSubmission(submissionId: string): Promise<void> 
   if (!complete) return;
 
   await prisma.$transaction(async (tx) => {
-    // Pro submissions carry a publishing package — materialize (or update)
-    // the real Upload row from the draft's scratch package* fields now that
-    // everything's confirmed. Mirrors what the old one-shot create used to
-    // build eagerly; this just does it at promotion time instead.
+    // Every submission gets a publishing package to track on Publisher
+    // Posts, not just Pro ones — a Standard submission just has no
+    // AI-generated package* fields to draw on, so it falls back to the
+    // plain title/voice-over it was actually submitted with. Materializes
+    // (or updates) the real Upload row now that everything's confirmed;
+    // mirrors what the old one-shot create used to build eagerly, just at
+    // promotion time instead.
     let publishingId = submission.publishingid;
-    if (submission.extension === "pro" && submission.packageTitle) {
+    const uploadTitle = submission.packageTitle || submission.title;
+    if (uploadTitle) {
       const verification = submission.assets.find((a) => a.type === "verification");
       if (publishingId) {
         await tx.upload.update({
           data: {
-            description: submission.packageDescription,
+            description: submission.packageDescription || submission.voiceScript,
             mediaFile: verification?.fileName,
             mediaKey: verification?.storageKey,
             tags: submission.packageTags,
-            title: submission.packageTitle,
+            title: uploadTitle,
           },
           where: { id: publishingId },
         });
@@ -57,12 +61,12 @@ export async function tryPromoteSubmission(submissionId: string): Promise<void> 
         const upload = await tx.upload.create({
           data: {
             createdById: submission.userId,
-            description: submission.packageDescription,
+            description: submission.packageDescription || submission.voiceScript,
             mediaFile: verification?.fileName,
             mediaKey: verification?.storageKey,
             submissionId: submission.id,
             tags: submission.packageTags,
-            title: submission.packageTitle,
+            title: uploadTitle,
           },
         });
         publishingId = upload.id;

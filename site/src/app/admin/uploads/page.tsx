@@ -44,8 +44,8 @@ export default function AdminUploadsPage() {
       <div>
         <h1 className="text-lg font-semibold tracking-tight">Uploads & Posts</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Pro submissions' publishing packages. Record each platform post manually — there's no
-          publish integration yet.
+          Every approved submission&apos;s publishing package. Record each platform post manually
+          — there&apos;s no publish integration yet.
         </p>
       </div>
 
@@ -58,7 +58,7 @@ export default function AdminUploadsPage() {
         <p className="text-sm text-destructive">Couldn&apos;t load uploads. Try again.</p>
       ) : uploads.data?.uploads.length === 0 ? (
         <div className="rounded-2xl border border-dashed bg-card p-12 text-center text-sm text-muted-foreground">
-          No uploads yet. They appear here once a creator submits with Pro mode on.
+          No uploads yet. They appear here once a submission is submitted.
         </div>
       ) : (
         <div className="space-y-4">
