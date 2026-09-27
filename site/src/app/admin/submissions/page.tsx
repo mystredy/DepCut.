@@ -304,7 +304,10 @@ function SubmissionCard({
                 {item.category && ` · ${item.category.emoji} ${item.category.name}`}
               </p>
             </div>
-            <StatusBadge status={item.reviewStatus} />
+            <div className="flex shrink-0 flex-col items-end gap-1.5">
+              <ExtensionBadge extension={item.extension} />
+              <StatusBadge status={item.reviewStatus} />
+            </div>
           </div>
 
           {item.voiceScript && item.reviewStatus !== "Qualified" && item.reviewStatus !== "Disqualified" && (
@@ -519,6 +522,22 @@ function SubmissionCard({
         )}
       </div>
     </div>
+  );
+}
+
+function ExtensionBadge({ extension }: { extension: string }) {
+  const isPro = extension === "pro";
+  return (
+    <span
+      className={cn(
+        "shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase",
+        isPro
+          ? "bg-primary/10 text-primary"
+          : "bg-muted text-muted-foreground"
+      )}
+    >
+      {isPro ? "Pro" : "Standard"}
+    </span>
   );
 }
 

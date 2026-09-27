@@ -282,6 +282,9 @@ export type AdminSubmission = {
   project: { name: string } | null;
   categoryId: string | null;
   category: { name: string; emoji: string } | null;
+  // "standard" | "pro" — Pro submissions carry the Pro Verification Suite
+  // (watermark, burn-in captions, edit-code match, viral package).
+  extension: string;
   status: string | null;
   reviewStatus: string | null;
   statusRemark: string | null;
