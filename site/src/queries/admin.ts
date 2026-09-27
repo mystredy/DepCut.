@@ -296,6 +296,10 @@ export type AdminSubmission = {
   publisherWorkdone: number | null;
   taskId: string | null;
   task: { id: string; title: string } | null;
+  // The connected workspace (see UserWorkspaceLink) picked for this
+  // submission, if any — null for an internal (projectId-linked) submission
+  // or one where the artist never connected/selected one.
+  workspace: { provider: string; workspaceName: string; editorEmail: string | null } | null;
   submitterName: string;
   submitterEmail: string;
   reviewedByName: string | null;

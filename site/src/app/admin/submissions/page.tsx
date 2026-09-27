@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { CheckCircle2, ClipboardCheck, Clock, FileText, Loader2, XCircle } from "lucide-react";
+import { CheckCircle2, ChevronDown, ClipboardCheck, Clock, FileText, Link2, Loader2, XCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,6 +21,20 @@ type ReviewSubTab = "in-review" | "approved" | "rejected";
 function formatTabCount(count: number): string {
   return count > 9 ? "9+" : String(count);
 }
+
+// Matches submit-project/[id]/page.tsx's INITIAL_WORKSPACES — the friendly
+// name for each fixed integration id a connected workspace's provider holds.
+const PROVIDER_LABELS: Record<string, string> = {
+  capcut: "CapCut Teams",
+  canva: "Canva Video Editor",
+  veed: "VEED.io Team",
+  premiere: "Adobe Premiere Pro + Frame.io",
+  davinci: "DaVinci Resolve + Blackmagic Cloud",
+  finalcut: "Final Cut Pro Collaboration",
+  frameio: "Frame.io Direct Hub",
+  postlab: "PostLab for FCP",
+  lucidlink: "LucidLink Filespace",
+};
 
 export default function AdminSubmissionsPage() {
   return (
@@ -297,6 +311,22 @@ function SubmissionCard({
             <p className="rounded-lg border bg-muted/30 p-3 text-xs italic text-muted-foreground line-clamp-3">
               &quot;{item.voiceScript}&quot;
             </p>
+          )}
+
+          {item.workspace && (
+            <details className="group rounded-lg border bg-muted/20 px-2.5 py-1.5 text-xs">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 select-none">
+                <span className="flex items-center gap-1.5 font-medium">
+                  <Link2 className="size-3 text-muted-foreground" />
+                  {item.workspace.workspaceName}
+                </span>
+                <ChevronDown className="size-3 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+              </summary>
+              <div className="mt-1.5 space-y-0.5 border-t pt-1.5 text-muted-foreground">
+                <p>{PROVIDER_LABELS[item.workspace.provider] ?? item.workspace.provider}</p>
+                {item.workspace.editorEmail && <p>{item.workspace.editorEmail}</p>}
+              </div>
+            </details>
           )}
         </div>
 

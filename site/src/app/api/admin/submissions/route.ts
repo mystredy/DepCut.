@@ -26,6 +26,7 @@ export const GET = withDepCutAuth(async (request) => {
       project: { select: { name: true } },
       task: { select: { id: true, title: true } },
       user: { select: { displayName: true, email: true, name: true } },
+      workspace: { select: { editorEmail: true, provider: true, workspaceName: true } },
     },
     orderBy: { createdAt: "desc" },
     where: { status: { notIn: ["draft", "submitting", "failed"] }, subType: "CSVID" },
