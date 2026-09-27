@@ -4,10 +4,10 @@ import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  ArrowLeft,
   Camera,
   ChartColumn,
   Check,
-  ChevronDown,
   ChevronUp,
   EllipsisVertical,
   ExternalLink,
@@ -654,6 +654,7 @@ export default function StudioPage({ params }: { params: Promise<{ username: str
 
       {viewingIndex !== null && (
         <DropViewer
+          studio={{ name: studio.name, avatarUrl: studioAvatarUrl(studio) }}
           drops={playableDrops}
           index={viewingIndex}
           onClose={() => setViewingIndex(null)}
@@ -663,6 +664,7 @@ export default function StudioPage({ params }: { params: Promise<{ username: str
 
       {dropParam && !dropParamInList && !unlistedViewerClosed && singleDrop.data && (
         <DropViewer
+          studio={{ name: studio.name, avatarUrl: studioAvatarUrl(studio) }}
           drops={[singleDrop.data.drop]}
           index={0}
           onClose={() => setUnlistedViewerClosed(true)}
@@ -1092,11 +1094,13 @@ function DropDetailsDialog({ drop, onClose }: { drop: StudioDrop | null; onClose
 // vertical frame, autoplaying with sound, tap to pause, swipe-equivalent
 // up/down between the studio's other playable drops.
 function DropViewer({
+  studio,
   drops,
   index,
   onClose,
   onIndexChange,
 }: {
+  studio: { name: string; avatarUrl: string | null };
   drops: StudioDrop[];
   index: number;
   onClose: () => void;
@@ -1105,10 +1109,12 @@ function DropViewer({
   const drop = drops[index];
   const [muted, setMuted] = useState(false);
   const [paused, setPaused] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     setPaused(false);
+    setExpanded(false);
     const video = videoRef.current;
     if (!video) return;
     // Try with sound first; browsers that block audible autoplay reject the
@@ -1150,11 +1156,11 @@ function DropViewer({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95" onClick={onClose}>
       <button
         type="button"
-        aria-label="Close"
+        aria-label="Back"
         onClick={onClose}
-        className="absolute right-4 top-4 z-10 grid size-9 place-items-center rounded-full bg-white/10 text-white backdrop-blur transition-colors hover:bg-white/20"
+        className="absolute left-4 top-4 z-10 grid size-9 place-items-center rounded-full bg-white/10 text-white backdrop-blur transition-colors hover:bg-white/20"
       >
-        <X className="size-4" />
+        <ArrowLeft className="size-4" />
       </button>
 
       {index > 0 && (
@@ -1168,19 +1174,6 @@ function DropViewer({
           className="absolute left-1/2 top-4 z-10 grid size-9 -translate-x-1/2 place-items-center rounded-full bg-white/10 text-white backdrop-blur transition-colors hover:bg-white/20"
         >
           <ChevronUp className="size-4" />
-        </button>
-      )}
-      {index < drops.length - 1 && (
-        <button
-          type="button"
-          aria-label="Next"
-          onClick={(e) => {
-            e.stopPropagation();
-            onIndexChange(index + 1);
-          }}
-          className="absolute bottom-4 left-1/2 z-10 grid size-9 -translate-x-1/2 place-items-center rounded-full bg-white/10 text-white backdrop-blur transition-colors hover:bg-white/20"
-        >
-          <ChevronDown className="size-4" />
         </button>
       )}
 
@@ -1221,12 +1214,53 @@ function DropViewer({
         </button>
 
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent p-4 pt-10">
-          <p className="text-sm font-semibold text-white">
+          <div className="mb-2 flex items-center gap-2">
+            {studio.avatarUrl ? (
+              <div className="size-7 shrink-0 overflow-hidden rounded-full bg-white/10">
+                {/* eslint-disable-next-line @next/next/no-img-element -- studio avatar, not an optimizable local asset */}
+                <img src={studio.avatarUrl} alt="" className="size-full object-cover" />
+              </div>
+            ) : (
+              <div className="grid size-7 shrink-0 place-items-center rounded-full bg-white/10 text-xs font-semibold text-white">
+                {studio.name.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <span className="text-xs font-semibold text-white">{studio.name}</span>
+          </div>
+
+          <p className={cn("text-sm font-semibold text-white", !expanded && "line-clamp-1")}>
             {drop.title || drop.caption || drop.fileName || "Untitled"}
           </p>
-          {drop.title && drop.caption && <p className="mt-0.5 text-xs text-white/80">{drop.caption}</p>}
-          {drop.hashtags.length > 0 && (
-            <p className="mt-1 text-xs text-white/70">{drop.hashtags.map((t) => `#${t}`).join(" ")}</p>
+
+          {!expanded ? (
+            (Boolean(drop.title && drop.caption) || drop.hashtags.length > 0) && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setExpanded(true);
+                }}
+                className="mt-0.5 text-xs font-medium text-white/70 hover:text-white"
+              >
+                …more
+              </button>
+            )
+          ) : (
+            <div onClick={(e) => e.stopPropagation()}>
+              {drop.title && drop.caption && (
+                <p className="mt-0.5 whitespace-pre-wrap text-xs text-white/80">{drop.caption}</p>
+              )}
+              {drop.hashtags.length > 0 && (
+                <p className="mt-1 text-xs text-white/70">{drop.hashtags.join(" ")}</p>
+              )}
+              <button
+                type="button"
+                onClick={() => setExpanded(false)}
+                className="mt-1 text-xs font-medium text-white/70 hover:text-white"
+              >
+                Show less
+              </button>
+            </div>
           )}
         </div>
       </div>
