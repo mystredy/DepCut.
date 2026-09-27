@@ -191,7 +191,7 @@ const SECTIONS: { key: Section; label: string }[] = [
 type RepurposeTab = "connections" | "workflow" | "calendar";
 
 const REPURPOSE_TABS: { key: RepurposeTab; label: string }[] = [
-  { key: "connections", label: "Connections" },
+  { key: "connections", label: "Overview" },
   { key: "workflow", label: "Workflow" },
   { key: "calendar", label: "Calendar" },
 ];
