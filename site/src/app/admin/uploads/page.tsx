@@ -249,9 +249,23 @@ function ExistingDropPicker({
           type="button"
           disabled={pending}
           onClick={() => onPick(d.id)}
-          className="flex items-center justify-between rounded-lg border px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-60"
+          className="flex items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left text-sm hover:bg-muted disabled:opacity-60"
         >
-          <span className="min-w-0 truncate font-medium">{d.title || d.fileName || "Untitled drop"}</span>
+          <span className="relative size-10 shrink-0 overflow-hidden rounded-md bg-muted">
+            {/* Same trick the studio grid uses — no separate thumbnail image
+                endpoint, so a muted <video> seeked to a frame stands in. */}
+            <video
+              src={`/api/drops/${d.id}/video`}
+              muted
+              playsInline
+              preload="metadata"
+              onLoadedMetadata={(e) => {
+                e.currentTarget.currentTime = 0.1;
+              }}
+              className="absolute inset-0 size-full object-cover"
+            />
+          </span>
+          <span className="min-w-0 flex-1 truncate font-medium">{d.title || d.fileName || "Untitled drop"}</span>
           <span className="shrink-0 text-[10px] font-bold uppercase text-muted-foreground">{d.status}</span>
         </button>
       ))}
