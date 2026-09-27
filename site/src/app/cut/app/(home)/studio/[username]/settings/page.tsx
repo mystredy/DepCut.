@@ -1418,12 +1418,16 @@ function NewPostsPresetRow({
             )}
           </div>
         </div>
-        <Switch
-          checked={isOn}
-          disabled={pending || workflowsLoading || (!isOn && !usable)}
-          onCheckedChange={toggle}
-          aria-label={`Auto publish to ${connection.accountName}`}
-        />
+        {workflowsLoading ? (
+          <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />
+        ) : (
+          <Switch
+            checked={isOn}
+            disabled={pending || (!isOn && !usable)}
+            onCheckedChange={toggle}
+            aria-label={`Auto publish to ${connection.accountName}`}
+          />
+        )}
       </div>
       {!usable && <p className="px-1 text-xs text-muted-foreground">Reconnect this account to turn this on.</p>}
       {mutationError && (
