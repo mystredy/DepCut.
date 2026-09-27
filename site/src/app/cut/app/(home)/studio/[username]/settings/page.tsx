@@ -901,9 +901,8 @@ function ConnectionsSection({ studioId }: { studioId: string }) {
                     </span>
                   </div>
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold">{copy.title}</p>
-                    <p className="truncate text-xs text-muted-foreground">{c ? c.accountName : copy.description}</p>
-                    {c?.accountHandle && <p className="truncate text-xs text-muted-foreground">{c.accountHandle}</p>}
+                    <p className="truncate text-sm font-semibold">{c ? c.accountName : copy.title}</p>
+                    <p className="truncate text-xs text-muted-foreground">{c ? c.accountHandle ?? copy.title : copy.description}</p>
                     {health && (
                       <p className={cn("mt-1 text-[11px]", health.ok ? "text-muted-foreground" : "text-destructive")}>
                         {health.label}
@@ -917,10 +916,10 @@ function ConnectionsSection({ studioId }: { studioId: string }) {
                         type="button"
                         size="sm"
                         variant="outline"
-                        className="flex-1"
+                        className="flex-1 truncate"
                         onClick={() => connect(c.platform, c.accountName)}
                       >
-                        Reconnect
+                        {c.accountHandle ?? c.accountName}
                       </Button>
                       <div className="relative shrink-0">
                         <button
@@ -955,6 +954,16 @@ function ConnectionsSection({ studioId }: { studioId: string }) {
                                 Analysis
                               </button>
                             )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                connect(c.platform, c.accountName);
+                                setMenuOpenId(null);
+                              }}
+                              className="block w-full rounded px-2 py-1.5 text-left hover:bg-muted"
+                            >
+                              Reconnect
+                            </button>
                             <button
                               type="button"
                               disabled={disconnect.isPending}
