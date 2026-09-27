@@ -167,9 +167,14 @@ function TagDropFlow({ submission, onClose }: { submission: AdminSubmission; onC
         studioId={studio.id}
         studioName={studio.name}
         initialFields={{
-          caption: submission.packageDescription ?? undefined,
-          hashtags: submission.packageTags ?? undefined,
-          title: submission.packageTitle ?? undefined,
+          // Truncated to the Drop schema's own limits (title 100, caption/
+          // hashtags 280) — the package fields they come from allow much
+          // more (packageDescription up to 2000), which used to make the
+          // very first auto-upload fail validation before the manager ever
+          // touched the composer.
+          caption: submission.packageDescription?.slice(0, 280) ?? undefined,
+          hashtags: submission.packageTags?.slice(0, 280) ?? undefined,
+          title: submission.packageTitle?.slice(0, 100) ?? undefined,
         }}
         initialVideoUrl={submission.hasVerification ? `/api/submissions/${submission.id}/verification` : undefined}
         onClose={onClose}
