@@ -8,7 +8,6 @@ import {
   Camera,
   ChartColumn,
   Check,
-  ChevronUp,
   EllipsisVertical,
   ExternalLink,
   Info,
@@ -1111,6 +1110,7 @@ function DropViewer({
   const [paused, setPaused] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
   const touchStartY = useRef<number | null>(null);
 
   useEffect(() => {
@@ -1138,6 +1138,21 @@ function DropViewer({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [index, drops.length, onClose, onIndexChange]);
+
+  // React's touchmove listener is passive by default, so calling
+  // preventDefault() from the JSX onTouchMove prop wouldn't actually stop
+  // the browser's own gesture — a swipe down from here reads as "pull to
+  // refresh" instead of "previous drop" unless we suppress it ourselves
+  // with a real non-passive listener.
+  useEffect(() => {
+    const el = frameRef.current;
+    if (!el) return;
+    const onTouchMove = (e: TouchEvent) => {
+      if (touchStartY.current !== null) e.preventDefault();
+    };
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    return () => el.removeEventListener("touchmove", onTouchMove);
+  }, []);
 
   if (!drop) return null;
 
@@ -1180,21 +1195,8 @@ function DropViewer({
         <ArrowLeft className="size-4" />
       </button>
 
-      {index > 0 && (
-        <button
-          type="button"
-          aria-label="Previous"
-          onClick={(e) => {
-            e.stopPropagation();
-            onIndexChange(index - 1);
-          }}
-          className="absolute left-1/2 top-4 z-10 grid size-9 -translate-x-1/2 place-items-center rounded-full bg-white/10 text-white backdrop-blur transition-colors hover:bg-white/20"
-        >
-          <ChevronUp className="size-4" />
-        </button>
-      )}
-
       <div
+        ref={frameRef}
         className="relative aspect-[9/16] h-full max-h-[92vh] max-w-full overflow-hidden rounded-2xl bg-black"
         onClick={(e) => e.stopPropagation()}
         onTouchStart={onTouchStart}
