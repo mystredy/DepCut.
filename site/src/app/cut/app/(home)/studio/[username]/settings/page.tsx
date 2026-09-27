@@ -146,7 +146,8 @@ const ACCOUNT_METRIC_TILES: { key: string; label: string }[] = [
 ];
 
 // Brand-colored full-width Connect button per platform, matched to each
-// platform's own brand color.
+// platform's own brand color. Also used, with GLOW_STYLE layered on, for a
+// connected account's own button — same brand pill, lit up to read as live.
 const CONNECT_BUTTON_STYLE: Record<string, string> = {
   facebook: "bg-[#1877F2] text-white hover:bg-[#1877F2]/90",
   instagram: "bg-gradient-to-r from-[#fa7e1e] via-[#d62976] to-[#962fbf] text-white hover:opacity-90",
@@ -155,6 +156,19 @@ const CONNECT_BUTTON_STYLE: Record<string, string> = {
   tiktok: "bg-black text-white hover:bg-black/90",
   x: "bg-black text-white hover:bg-black/90",
   youtube: "bg-[#FF0000] text-white hover:bg-[#FF0000]/90",
+};
+
+// A soft brand-colored glow behind a connected account's button. Black-brand
+// buttons (Threads/TikTok/X) glow white instead, since a black glow on a
+// dark card would be invisible.
+const GLOW_STYLE: Record<string, string> = {
+  facebook: "shadow-[0_0_18px_rgba(24,119,242,0.55)]",
+  instagram: "shadow-[0_0_18px_rgba(214,41,118,0.55)]",
+  snapchat: "shadow-[0_0_18px_rgba(255,252,0,0.55)]",
+  threads: "shadow-[0_0_18px_rgba(255,255,255,0.25)]",
+  tiktok: "shadow-[0_0_18px_rgba(255,255,255,0.25)]",
+  x: "shadow-[0_0_18px_rgba(255,255,255,0.25)]",
+  youtube: "shadow-[0_0_18px_rgba(255,0,0,0.55)]",
 };
 
 // Content categories, matching the taxonomy platforms like YouTube use for a
@@ -912,15 +926,17 @@ function ConnectionsSection({ studioId }: { studioId: string }) {
                   <div className="border-t border-border" />
                   {c ? (
                     <div className="flex items-center gap-1.5">
-                      <Button
+                      <button
                         type="button"
-                        size="sm"
-                        variant="outline"
-                        className="flex-1 truncate"
                         onClick={() => connect(c.platform, c.accountName)}
+                        className={cn(
+                          "flex flex-1 items-center justify-center truncate rounded-full px-4 py-2 text-sm font-semibold transition-opacity",
+                          CONNECT_BUTTON_STYLE[platform] ?? "bg-primary text-primary-foreground hover:opacity-90",
+                          GLOW_STYLE[platform]
+                        )}
                       >
                         {c.accountHandle ?? c.accountName}
-                      </Button>
+                      </button>
                       <div className="relative shrink-0">
                         <button
                           type="button"
