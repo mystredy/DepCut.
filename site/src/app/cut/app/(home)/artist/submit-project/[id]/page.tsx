@@ -819,12 +819,18 @@ export default function SubmitProjectEditorPage() {
   // covers the instant right after Check succeeds, before the invalidated
   // query refetches; submission.studio covers every load after that.
   const editCodeLocked = couponValidated || Boolean(submission?.studio);
+  // Only a real YouTube channel match captures a handle to force — a plain
+  // studio code never does, so locking the toggle for that path left it
+  // permanently stuck off with no way to ever turn it on. couponCode already
+  // holds the raw validated value (the studio code, or the canonical
+  // YouTube URL) regardless of whether this is a fresh Check or a resumed
+  // draft, so re-testing it here is enough to tell the two apart without a
+  // dedicated stored flag.
+  const isYoutubeMatch = editCodeLocked && YOUTUBE_URL_RE.test(couponCode.trim());
   // A matched channel's watermark isn't optional once locked — forced on
   // (and the toggle/text both disabled) regardless of the stored flag,
   // which predates this fix on submissions validated before it shipped.
-  // Ties to watermarkText rather than editCodeLocked alone so a studio-code
-  // match with no captured handle still leaves the toggle freely settable.
-  const watermarkForced = editCodeLocked && Boolean(watermarkText.trim());
+  const watermarkForced = isYoutubeMatch && Boolean(watermarkText.trim());
   const watermarkOn = watermarkForced || watermarkEnabled;
 
   // Doesn't require uploads to finish — only that something's been picked.
@@ -1438,7 +1444,7 @@ export default function SubmitProjectEditorPage() {
                     <Switch
                       checked={watermarkOn}
                       onCheckedChange={updateWatermarkEnabled}
-                      disabled={!isDraft || editCodeLocked}
+                      disabled={!isDraft || isYoutubeMatch}
                       aria-label="Enable watermark"
                     />
                   </div>
@@ -1447,7 +1453,7 @@ export default function SubmitProjectEditorPage() {
                       value={watermarkText}
                       onChange={(e) => updateWatermarkText(e.target.value)}
                       placeholder="Watermark text, e.g. @yourhandle"
-                      disabled={!isDraft || editCodeLocked}
+                      disabled={!isDraft || isYoutubeMatch}
                       required={watermarkOn}
                     />
                   )}
