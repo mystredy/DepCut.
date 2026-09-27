@@ -120,8 +120,29 @@ export const PATCH = withDepCutAuth(async (request, context: RouteContext) => {
     }
   }
 
+  // spaceid is a real foreign key (UserWorkspaceLink.id) — "" from the
+  // client means "no workspace selected" and clears the field, and a
+  // non-empty value must be a link this same user actually owns, so a
+  // request can't point a submission at someone else's connected workspace.
+  const { spaceid, ...rest } = parsed.data;
+  let spaceidUpdate: { spaceid: string | null } | Record<string, never> = {};
+  if (spaceid !== undefined) {
+    if (spaceid === "") {
+      spaceidUpdate = { spaceid: null };
+    } else {
+      const link = await prisma.userWorkspaceLink.findUnique({ select: { userId: true }, where: { id: spaceid } });
+      if (!link || link.userId !== submission.userId) {
+        return NextResponse.json(
+          { error: "invalid_request", message: "spaceid: not a workspace you've connected." },
+          { status: 400 },
+        );
+      }
+      spaceidUpdate = { spaceid };
+    }
+  }
+
   const updated = await prisma.submission.update({
-    data: parsed.data,
+    data: { ...rest, ...spaceidUpdate },
     include: {
       assets: true,
       studio: { select: { id: true, name: true } },

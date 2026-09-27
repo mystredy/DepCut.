@@ -126,6 +126,10 @@ type Workspace = {
   workspaceName: string;
   connectedEmail: string;
   features: string[];
+  // The real UserWorkspaceLink.id once connected — what actually gets saved
+  // as Submission.spaceid (a real foreign key). id above stays the fixed
+  // provider key (capcut, canva, ...) this catalog is keyed by.
+  linkId?: string;
 };
 
 const WORKSPACE_CATEGORIES: WorkspaceCategory[] = [
@@ -369,12 +373,33 @@ export default function SubmitProjectEditorPage() {
         prev.map((w) => {
           const link = links.find((l) => l.provider === w.id);
           return link
-            ? { ...w, connected: true, connectedEmail: link.editorEmail ?? "", workspaceName: link.workspaceName }
+            ? {
+                ...w,
+                connected: true,
+                connectedEmail: link.editorEmail ?? "",
+                linkId: link.id,
+                workspaceName: link.workspaceName,
+              }
             : w;
         })
       );
     }
   }, [workspaceLinksQuery.data]);
+
+  // Resumes which connected workspace this submission had active —
+  // Submission.spaceid is the real UserWorkspaceLink id, mapped back to the
+  // provider key this page's local state keys by. Waits on both the
+  // submission and the links list since it needs to cross-reference them.
+  const selectedWorkspaceHydratedRef = useRef(false);
+  useEffect(() => {
+    const links = workspaceLinksQuery.data?.links;
+    if (selectedWorkspaceHydratedRef.current || !submission || !links) return;
+    selectedWorkspaceHydratedRef.current = true;
+    if (submission.spaceid) {
+      const link = links.find((l) => l.id === submission.spaceid);
+      if (link) setSelectedWorkspaceId(link.provider);
+    }
+  }, [submission, workspaceLinksQuery.data]);
 
   // Debounced autosave — batches whatever changed in the last 600ms into one
   // PATCH instead of one per keystroke. Only fires while still a draft.
@@ -453,7 +478,12 @@ export default function SubmitProjectEditorPage() {
   };
   const updateSelectedWorkspaceId = (wsId: string) => {
     setSelectedWorkspaceId(wsId);
-    scheduleAutosave({ spaceid: wsId });
+    // spaceid is a real foreign key now (UserWorkspaceLink.id) — send the
+    // connected link's own id, not the provider key wsId is keyed by. "" (no
+    // workspace selected) autosaves as "" too, which the server treats as
+    // clearing the field.
+    const linkId = workspaces.find((w) => w.id === wsId)?.linkId;
+    scheduleAutosave({ spaceid: linkId ?? "" });
   };
   const updatePackageTitle = (value: string) => {
     setPackageTitle(value);
@@ -736,7 +766,7 @@ export default function SubmitProjectEditorPage() {
     setLinking(true);
     setConnectError(null);
     try {
-      await connectWorkspace.mutateAsync({
+      const { link } = await connectWorkspace.mutateAsync({
         editorEmail: memberEmail.trim() || undefined,
         provider: connectingId,
         workspaceName: teamName.trim(),
@@ -744,11 +774,15 @@ export default function SubmitProjectEditorPage() {
       setWorkspaces((prev) =>
         prev.map((w) =>
           w.id === connectingId
-            ? { ...w, connected: true, workspaceName: teamName.trim(), connectedEmail: memberEmail.trim() }
+            ? { ...w, connected: true, linkId: link.id, workspaceName: teamName.trim(), connectedEmail: memberEmail.trim() }
             : w
         )
       );
-      updateSelectedWorkspaceId(connectingId);
+      // Goes straight through state rather than updateSelectedWorkspaceId,
+      // which would read workspaces before this setWorkspaces above commits
+      // — link.id is already in hand here.
+      setSelectedWorkspaceId(connectingId);
+      scheduleAutosave({ spaceid: link.id });
       setConnectingId(null);
       setTeamName("");
       setMemberEmail("");

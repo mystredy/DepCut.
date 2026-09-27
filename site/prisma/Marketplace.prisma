@@ -110,7 +110,11 @@ model Submission {
   inspireUrl        String?
   taskId            String?
   task              Task?             @relation(fields: [taskId], references: [id])
+  // The connected workspace picked for this submission — a real
+  // UserWorkspaceLink id (that user's own row; see the PATCH route's
+  // ownership check), not the bare provider key.
   spaceid           String?
+  workspace         UserWorkspaceLink? @relation(fields: [spaceid], references: [id], onDelete: SetNull)
   voiceScript       String?
   duration          Int?
   publishingid      String?
@@ -219,6 +223,7 @@ model UserWorkspaceLink {
   editorEmail   String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  submissions   Submission[]
 
   @@unique([userId, provider])
   @@index([userId])
