@@ -196,8 +196,8 @@ const STUDIO_TYPES = [
 type Section = "setup" | "access" | "history" | "repurpose";
 
 const SECTIONS: { key: Section; label: string }[] = [
-  { key: "setup", label: "Studio setup" },
   { key: "repurpose", label: "Social accounts" },
+  { key: "setup", label: "Studio setup" },
   { key: "history", label: "Activity" },
   { key: "access", label: "Studio access" },
 ];
