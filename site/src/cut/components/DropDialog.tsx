@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, Check, FileVideo, Globe2, Link2, Loader2, Lock } from "lucide-react";
+import { CalendarClock, Check, FileVideo, Globe2, Link2, Loader2, Lock, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -158,6 +158,11 @@ export function DropDialog({
   // drop skips it. Only takes effect when posting now: a scheduled drop's
   // eventual publish (dropScheduleSweep.ts) has no way to see this choice.
   const [skipConnectionIds, setSkipConnectionIds] = useState<Set<string>>(new Set());
+
+  // For the Preview button — plays/pauses the loaded video directly, even
+  // mid-upload (native controls only show once uploadState is "ready").
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [videoPlaying, setVideoPlaying] = useState(false);
 
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   // Revoke the previous blob URL whenever a new one replaces it, or the
@@ -388,6 +393,7 @@ export function DropDialog({
               <div className="flex flex-col gap-1">
                 <div className="relative h-48 w-full overflow-hidden rounded-xl border border-border bg-black">
                   <video
+                    ref={videoRef}
                     key={previewUrl ?? resumeDrop?.id}
                     src={previewUrl ?? `/api/drops/${resumeDrop?.id}/video`}
                     className="size-full object-contain"
@@ -395,6 +401,9 @@ export function DropDialog({
                     muted
                     playsInline
                     preload="auto"
+                    onPlay={() => setVideoPlaying(true)}
+                    onPause={() => setVideoPlaying(false)}
+                    onEnded={() => setVideoPlaying(false)}
                   />
                   {uploadState === "uploading" && (
                     <>
@@ -433,6 +442,25 @@ export function DropDialog({
                   <span className="truncate">{file?.name ?? resumeDrop?.fileName ?? "Video uploaded"}</span>
                   {file && <span className="shrink-0">{formatBytes(file.size)}</span>}
                 </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => {
+                    const v = videoRef.current;
+                    if (!v) return;
+                    if (v.paused) {
+                      v.muted = false;
+                      void v.play();
+                    } else {
+                      v.pause();
+                    }
+                  }}
+                >
+                  <Play className="size-3.5" data-icon="inline-start" />
+                  {videoPlaying ? "Playing…" : "Preview"}
+                </Button>
               </div>
             ) : fetchingInitialVideo ? (
               <div className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border p-8 text-center">
