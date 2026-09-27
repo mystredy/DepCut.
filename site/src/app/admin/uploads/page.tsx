@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ExternalLink, Eye, Film, Plus, Send } from "lucide-react";
+import { ExternalLink, Eye, FileVideo, Film, Plus, Send, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -112,7 +112,18 @@ function SubmissionRow({ item }: { item: AdminSubmission }) {
           )}
         </span>
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold">{item.title}</p>
+          <p className="flex items-center gap-1.5 truncate text-sm font-semibold">
+            {item.extension === "pro" ? (
+              <span title="Pro">
+                <Sparkles className="size-3.5 shrink-0 text-primary" />
+              </span>
+            ) : (
+              <span title="Standard">
+                <FileVideo className="size-3.5 shrink-0 text-muted-foreground" />
+              </span>
+            )}
+            <span className="truncate">{item.title}</span>
+          </p>
           <p className="mt-0.5 truncate text-xs text-muted-foreground">
             {item.submitterName} · {item.submitterEmail}
             {item.category && ` · ${item.category.emoji} ${item.category.name}`}
