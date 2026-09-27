@@ -82,8 +82,19 @@ export const POST = withDepCutAuth(async (request) => {
   // like any other draft field: autosave (PATCH) owns it from here, so
   // renaming the project later doesn't silently retitle an in-progress
   // submission, and renaming the submission doesn't touch the project.
+  // subSource starts at InspiredExternal, matching the submit-project page's
+  // own default (its Inspire/Task toggle only autosaves on an explicit
+  // click) — otherwise a draft the artist never touched that toggle for is
+  // left with no recorded mode at all, despite genuinely being an Inspire
+  // submission the whole time.
   const submission = await prisma.submission.create({
-    data: { status: "draft", userId: request.depcut.userId, projectId, title: projectName },
+    data: {
+      status: "draft",
+      subSource: "InspiredExternal",
+      userId: request.depcut.userId,
+      projectId,
+      title: projectName,
+    },
     include: { assets: true, project: { select: { name: true } } },
   });
   return NextResponse.json({ submission });
