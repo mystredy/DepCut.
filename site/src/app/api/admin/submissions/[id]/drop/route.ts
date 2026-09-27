@@ -66,6 +66,7 @@ export const PATCH = withDepCutAuth(async (request, context: RouteContext) => {
       hasThumbnail:
         Boolean(updated.projectId) || updated.assets.some((a) => a.type === "thumbnail" && a.status === "complete"),
       hasVideo: Boolean(updated.projectId) || updated.assets.some((a) => a.type === "video" && a.status === "complete"),
+      hasVerification: updated.assets.some((a) => a.type === "verification" && a.status === "complete"),
       reviewedAt: updated.reviewedAt?.toISOString() ?? null,
       reviewStartedAt: updated.reviewStartedAt?.toISOString() ?? null,
       reviewCompletedAt: updated.reviewCompletedAt?.toISOString() ?? null,

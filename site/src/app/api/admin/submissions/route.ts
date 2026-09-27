@@ -38,6 +38,7 @@ export const GET = withDepCutAuth(async (request) => {
     createdAt: row.createdAt.toISOString(),
     hasThumbnail: Boolean(row.projectId) || row.assets.some((a) => a.type === "thumbnail" && a.status === "complete"),
     hasVideo: Boolean(row.projectId) || row.assets.some((a) => a.type === "video" && a.status === "complete"),
+    hasVerification: row.assets.some((a) => a.type === "verification" && a.status === "complete"),
     reviewedAt: row.reviewedAt?.toISOString() ?? null,
     reviewStartedAt: row.reviewStartedAt?.toISOString() ?? null,
     reviewCompletedAt: row.reviewCompletedAt?.toISOString() ?? null,

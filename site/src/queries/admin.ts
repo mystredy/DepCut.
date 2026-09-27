@@ -296,6 +296,9 @@ export type AdminSubmission = {
   packageTags: string | null;
   hasThumbnail: boolean;
   hasVideo: boolean;
+  // Pro's verification export — the artist's own copy proving the final
+  // cut matches, at /api/submissions/[id]/verification.
+  hasVerification: boolean;
   maxRates: number | null;
   earnedRates: number | null;
   reviewScore: number | null;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { CalendarClock, Check, FileVideo, Globe2, Link2, Loader2, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -97,6 +97,7 @@ export function DropDialog({
   studioName,
   resumeDrop,
   initialFields,
+  initialVideoUrl,
   onClose,
   onPosted,
 }: {
@@ -111,6 +112,12 @@ export function DropDialog({
   // package: packageTitle/packageDescription/packageTags) — ignored once
   // resumeDrop is set, which already carries its own saved values.
   initialFields?: { title?: string; caption?: string; hashtags?: string };
+  // A signed-redirect URL (e.g. a Pro submission's verification export at
+  // /api/submissions/[id]/verification) to preload as the video the moment
+  // this dialog opens, as if the manager had just picked/dropped it
+  // themselves — same upload pipeline, just kicked off programmatically.
+  // Ignored once resumeDrop or a manual pick already has a file/dropId.
+  initialVideoUrl?: string;
   onClose: () => void;
   // Fired once this drop actually posts (or gets scheduled) — after
   // publishDrop succeeds, before the dialog closes itself. Lets a caller
@@ -163,42 +170,11 @@ export function DropDialog({
 
   const queryClient = useQueryClient();
   const createDrop = useCreateDrop();
-  const workflows = useStudioWorkflows(studioId);
-
-  // Hold the real header off until the auto-publish targets it shows are
-  // known — popping in a row of accounts once the query resolves reads as
-  // broken, not loading. The dialog itself still opens right away, just
-  // with a spinner in place of its content, so the click has an immediate
-  // response instead of a beat of nothing.
-  if (workflows.isPending) {
-    return (
-      <Dialog open onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="sm:max-w-sm">
-          <div className="flex items-center justify-center py-10">
-            <Loader2 className="size-5 animate-spin text-muted-foreground" />
-          </div>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
-  // The exact set social-workflow-publish.ts reads when this Drop finishes
-  // uploading — shown so posting isn't a surprise about where it lands.
-  const autoPublishTargets = (workflows.data?.workflows ?? []).filter(
-    (w) => w.autoPublish && w.status === "Active" && w.sourceConnection.platform === STUDIO_SOURCE_PLATFORM
-  );
 
   const currentFields = () => ({
     title: title.trim() || undefined,
     caption: caption.trim() || undefined,
     hashtags: hashtags.trim() || undefined,
-  });
-
-  const publishOptions = () => ({
-    ...currentFields(),
-    scheduledFor: scheduling && scheduledDate ? scheduledDate.toISOString() : null,
-    skipConnectionIds: Array.from(skipConnectionIds),
-    visibility,
   });
 
   // Start uploading to R2 the moment a file is picked or dropped — this is
@@ -236,6 +212,61 @@ export function DropDialog({
       setUploadState("error");
     }
   };
+
+  // Preloads initialVideoUrl the moment this dialog opens for it, as if the
+  // manager had just picked that file themselves — once only, and never
+  // over a resumed draft or a file already in flight.
+  const fetchedInitialVideo = useRef(false);
+  const [fetchingInitialVideo, setFetchingInitialVideo] = useState(Boolean(initialVideoUrl) && !resumeDrop);
+  useEffect(() => {
+    if (!initialVideoUrl || resumeDrop || fetchedInitialVideo.current) return;
+    fetchedInitialVideo.current = true;
+    (async () => {
+      try {
+        const res = await fetch(initialVideoUrl);
+        if (!res.ok) throw new Error("Couldn't load that video.");
+        const blob = await res.blob();
+        pick(new File([blob], "verification-export.mp4", { type: blob.type || "video/mp4" }));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Couldn't load that video.");
+      } finally {
+        setFetchingInitialVideo(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialVideoUrl, resumeDrop]);
+
+  const workflows = useStudioWorkflows(studioId);
+
+  // Hold the real header off until the auto-publish targets it shows are
+  // known — popping in a row of accounts once the query resolves reads as
+  // broken, not loading. The dialog itself still opens right away, just
+  // with a spinner in place of its content, so the click has an immediate
+  // response instead of a beat of nothing.
+  if (workflows.isPending) {
+    return (
+      <Dialog open onOpenChange={(open) => !open && onClose()}>
+        <DialogContent className="sm:max-w-sm">
+          <div className="flex items-center justify-center py-10">
+            <Loader2 className="size-5 animate-spin text-muted-foreground" />
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  // The exact set social-workflow-publish.ts reads when this Drop finishes
+  // uploading — shown so posting isn't a surprise about where it lands.
+  const autoPublishTargets = (workflows.data?.workflows ?? []).filter(
+    (w) => w.autoPublish && w.status === "Active" && w.sourceConnection.platform === STUDIO_SOURCE_PLATFORM
+  );
+
+  const publishOptions = () => ({
+    ...currentFields(),
+    scheduledFor: scheduling && scheduledDate ? scheduledDate.toISOString() : null,
+    skipConnectionIds: Array.from(skipConnectionIds),
+    visibility,
+  });
 
   const post = async () => {
     if (scheduling && (!scheduledDate || Number.isNaN(scheduledDate.getTime()) || scheduledDate.getTime() <= Date.now())) {
@@ -402,6 +433,11 @@ export function DropDialog({
                   <span className="truncate">{file?.name ?? resumeDrop?.fileName ?? "Video uploaded"}</span>
                   {file && <span className="shrink-0">{formatBytes(file.size)}</span>}
                 </div>
+              </div>
+            ) : fetchingInitialVideo ? (
+              <div className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border p-8 text-center">
+                <Loader2 className="size-6 animate-spin text-muted-foreground" />
+                <span className="text-xs font-medium text-muted-foreground">Loading the verification video…</span>
               </div>
             ) : (
               <label

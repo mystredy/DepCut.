@@ -171,6 +171,7 @@ function TagDropFlow({ submission, onClose }: { submission: AdminSubmission; onC
           hashtags: submission.packageTags ?? undefined,
           title: submission.packageTitle ?? undefined,
         }}
+        initialVideoUrl={submission.hasVerification ? `/api/submissions/${submission.id}/verification` : undefined}
         onClose={onClose}
         onPosted={(dropId) =>
           tagDrop.mutate({ id: submission.id, publishingid: dropId, studioId: studio.id })
