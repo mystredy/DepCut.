@@ -289,6 +289,11 @@ export type AdminSubmission = {
   statusRemark: string | null;
   reviewRemark: string | null;
   voiceScript: string | null;
+  // Pro's viral package (AI-generated or edit-code-matched) — null for a
+  // Standard submission, which never fills these.
+  packageTitle: string | null;
+  packageDescription: string | null;
+  packageTags: string | null;
   hasThumbnail: boolean;
   hasVideo: boolean;
   maxRates: number | null;

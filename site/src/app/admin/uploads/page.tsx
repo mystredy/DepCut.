@@ -141,7 +141,7 @@ function SubmissionRow({ item }: { item: AdminSubmission }) {
         </Button>
       )}
 
-      {tagOpen && <TagDropFlow submissionId={item.id} onClose={() => setTagOpen(false)} />}
+      {tagOpen && <TagDropFlow submission={item} onClose={() => setTagOpen(false)} />}
       {viewOpen && item.publishingid && (
         <ViewDropDialog dropId={item.publishingid} onClose={() => setViewOpen(false)} />
       )}
@@ -149,7 +149,7 @@ function SubmissionRow({ item }: { item: AdminSubmission }) {
   );
 }
 
-function TagDropFlow({ submissionId, onClose }: { submissionId: string; onClose: () => void }) {
+function TagDropFlow({ submission, onClose }: { submission: AdminSubmission; onClose: () => void }) {
   const [mode, setMode] = useState<"new" | "existing" | null>(null);
   const [studio, setStudio] = useState<StudioSummary | null>(null);
   const studios = useStudios();
@@ -158,16 +158,22 @@ function TagDropFlow({ submissionId, onClose }: { submissionId: string; onClose:
   // A brand-new drop is composed through the exact same dialog the studio
   // page's own "Add drop" button opens — that's already a full dialog on
   // its own, so it replaces this wrapper's Dialog rather than nesting
-  // inside it.
+  // inside it. Pro's own viral package (when it has one) prefills the
+  // composer instead of starting blank — Standard has none of these.
   if (mode === "new" && studio) {
     return (
       <DropDialog
         projectId={null}
         studioId={studio.id}
         studioName={studio.name}
+        initialFields={{
+          caption: submission.packageDescription ?? undefined,
+          hashtags: submission.packageTags ?? undefined,
+          title: submission.packageTitle ?? undefined,
+        }}
         onClose={onClose}
         onPosted={(dropId) =>
-          tagDrop.mutate({ id: submissionId, publishingid: dropId, studioId: studio.id })
+          tagDrop.mutate({ id: submission.id, publishingid: dropId, studioId: studio.id })
         }
       />
     );
@@ -215,7 +221,7 @@ function TagDropFlow({ submissionId, onClose }: { submissionId: string; onClose:
             pending={tagDrop.isPending}
             onPick={(dropId) =>
               tagDrop.mutate(
-                { id: submissionId, publishingid: dropId, studioId: studio.id },
+                { id: submission.id, publishingid: dropId, studioId: studio.id },
                 { onSuccess: onClose }
               )
             }

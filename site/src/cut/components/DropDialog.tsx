@@ -96,6 +96,7 @@ export function DropDialog({
   studioId,
   studioName,
   resumeDrop,
+  initialFields,
   onClose,
   onPosted,
 }: {
@@ -106,6 +107,10 @@ export function DropDialog({
   // picked up from the studio grid's Draft card to finish posting it,
   // instead of starting a new upload.
   resumeDrop?: { id: string; title: string | null; caption: string | null; hashtags: string[]; fileName: string | null };
+  // Prefills a brand-new drop's fields (e.g. a Pro submission's own viral
+  // package: packageTitle/packageDescription/packageTags) — ignored once
+  // resumeDrop is set, which already carries its own saved values.
+  initialFields?: { title?: string; caption?: string; hashtags?: string };
   onClose: () => void;
   // Fired once this drop actually posts (or gets scheduled) — after
   // publishDrop succeeds, before the dialog closes itself. Lets a caller
@@ -114,9 +119,11 @@ export function DropDialog({
   onPosted?: (dropId: string) => void;
 }) {
   const [file, setFile] = useState<File | null>(null);
-  const [title, setTitle] = useState(resumeDrop?.title ?? "");
-  const [caption, setCaption] = useState(resumeDrop?.caption ?? "");
-  const [hashtags, setHashtags] = useState(resumeDrop?.hashtags.map((t) => `#${t}`).join(" ") ?? "");
+  const [title, setTitle] = useState(resumeDrop?.title ?? initialFields?.title ?? "");
+  const [caption, setCaption] = useState(resumeDrop?.caption ?? initialFields?.caption ?? "");
+  const [hashtags, setHashtags] = useState(
+    resumeDrop?.hashtags.map((t) => `#${t}`).join(" ") ?? initialFields?.hashtags ?? ""
+  );
   const [dragOver, setDragOver] = useState(false);
   // dropId/uploadState track the background upload kicked off by pick() —
   // separate from posting, which is only the explicit "Post" (finalize) call.
