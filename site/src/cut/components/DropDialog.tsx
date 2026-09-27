@@ -97,6 +97,7 @@ export function DropDialog({
   studioName,
   resumeDrop,
   onClose,
+  onPosted,
 }: {
   projectId: string | null;
   studioId: string;
@@ -106,6 +107,11 @@ export function DropDialog({
   // instead of starting a new upload.
   resumeDrop?: { id: string; title: string | null; caption: string | null; hashtags: string[]; fileName: string | null };
   onClose: () => void;
+  // Fired once this drop actually posts (or gets scheduled) — after
+  // publishDrop succeeds, before the dialog closes itself. Lets a caller
+  // that opened this for a specific purpose (e.g. tagging a drop to a
+  // marketplace submission) learn the drop's real id.
+  onPosted?: (dropId: string) => void;
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState(resumeDrop?.title ?? "");
@@ -232,6 +238,7 @@ export function DropDialog({
     setPosting(true);
     setError(null);
     try {
+      let postedDropId = dropId;
       if (dropId) {
         // The video already finished uploading in the background (or this
         // is a resumed draft) — just finalize it with whatever's typed now.
@@ -242,6 +249,7 @@ export function DropDialog({
         // this, so render, upload, and finalize in one shot.
         if (!projectId) return;
         const { drop: created } = await createDrop.mutateAsync({ ...currentFields(), projectId, studioId });
+        postedDropId = created.id;
         setPhase("export");
         setProgress(0);
         const exported = await exportCurrentProject(projectId, setProgress);
@@ -256,6 +264,7 @@ export function DropDialog({
         await publishDrop(created.id, publishOptions());
       }
       void queryClient.invalidateQueries({ queryKey: studioDropsQueryKey(studioId) });
+      if (postedDropId) onPosted?.(postedDropId);
       setDone(true);
       setTimeout(onClose, 900);
     } catch (e) {

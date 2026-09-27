@@ -16,7 +16,6 @@ export const adminContentGenerationsQueryKey = (kind: "image" | "video") =>
   ["admin", "content-generations", kind] as const;
 export const adminContentAudioQueryKey = (tool?: "text-to-speech" | "dubbing") =>
   ["admin", "content-audio", tool ?? ""] as const;
-export const adminUploadsQueryKey = ["admin", "uploads"] as const;
 export const adminPaymentMethodsQueryKey = ["admin", "payment-methods"] as const;
 export const adminAiModelsQueryKey = ["admin", "ai-models"] as const;
 export const adminSettingsQueryKey = ["admin", "settings"] as const;
@@ -303,6 +302,13 @@ export type AdminSubmission = {
   // submission, if any — null for an internal (projectId-linked) submission
   // or one where the artist never connected/selected one.
   workspace: { provider: string; workspaceName: string; editorEmail: string | null } | null;
+  // The real Drop this approved submission's finished edit was posted as —
+  // set by tagging it (Publisher Posts), never automatically. studioId is
+  // which studio it went to (also set by a Pro edit-code/YouTube match,
+  // ahead of any tagging); publishingid is that Drop's id.
+  studioId: string | null;
+  studio: { id: string; name: string; username: string } | null;
+  publishingid: string | null;
   submitterName: string;
   submitterEmail: string;
   reviewedByName: string | null;
@@ -527,40 +533,6 @@ export type AdminAiModel = {
   updatedAt: string;
 };
 
-export type AdminPlatform =
-  | "tiktok"
-  | "youtube"
-  | "facebook"
-  | "instagram"
-  | "threads"
-  | "snapchat"
-  | "x";
-
-export type AdminPost = {
-  id: string;
-  uploadId: string;
-  postTime: string | null;
-  platform: string | null;
-  shortLink: boolean;
-  text: string | null;
-  mediaUrls: string | null;
-  state: "scheduled" | "published" | "failed";
-  postUrl: string | null;
-  errorMessage: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type AdminUpload = {
-  id: string;
-  title: string;
-  description: string | null;
-  tags: string | null;
-  status: string;
-  createdAt: string;
-  submission: { id: string; title: string; user: { email: string } } | null;
-  posts: AdminPost[];
-};
 
 export type AdminUser = {
   id: string;
@@ -814,47 +786,19 @@ export function useAdminContentAudio(tool?: "text-to-speech" | "dubbing") {
   });
 }
 
-export function useAdminUploads() {
-  return useQuery({
-    queryFn: () => apiFetch<{ uploads: AdminUpload[] }>("/api/admin/uploads"),
-    queryKey: adminUploadsQueryKey,
-  });
-}
-
-export function useCreatePost() {
+// Tags an approved submission to a real Drop — the studio post the
+// publisher actually made (or is making) from the finished, hand-edited
+// export. Sets Submission.publishingid (the Drop's id) and studioId; see
+// /api/admin/submissions/[id]/drop.
+export function useTagSubmissionDrop() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      uploadId,
-      ...input
-    }: {
-      uploadId: string;
-      platform: AdminPlatform;
-      text?: string;
-      mediaUrls?: string;
-    }) =>
-      apiFetch<{ post: AdminPost }>(`/api/admin/uploads/${uploadId}/posts`, {
-        body: JSON.stringify(input),
-        method: "POST",
-      }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: adminUploadsQueryKey }),
-  });
-}
-
-export type UpdatePostStateInput =
-  | { postId: string; state: "scheduled" }
-  | { postId: string; state: "published"; postUrl: string }
-  | { postId: string; state: "failed"; errorMessage: string };
-
-export function useUpdatePostState() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ postId, ...body }: UpdatePostStateInput) =>
-      apiFetch<{ post: AdminPost }>(`/api/admin/posts/${postId}`, {
+    mutationFn: ({ id, ...body }: { id: string; publishingid: string; studioId: string }) =>
+      apiFetch<{ submission: AdminSubmission }>(`/api/admin/submissions/${id}/drop`, {
         body: JSON.stringify(body),
         method: "PATCH",
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: adminUploadsQueryKey }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: adminSubmissionsQueryKey }),
   });
 }
 
