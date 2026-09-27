@@ -116,6 +116,31 @@ const META_PICKER_NOTES: Record<string, string> = {
   instagram: "This is your main Facebook account. You can choose the linked Instagram Business Account to publish from when you create a workflow later.",
 };
 
+// User-facing copy for the Social accounts platform cards — separate from
+// SOCIAL_APP_SEED's admin-facing OAuth-app-credential descriptions, since
+// the two audiences need different language for the same platform.
+const PLATFORM_CARD_COPY: Record<string, { title: string; description: string; connectLabel: string }> = {
+  facebook: { title: "Facebook Page", description: "Connect your official Facebook Page.", connectLabel: "Connect Page" },
+  instagram: { title: "Instagram Account", description: "Connect your Meta Instagram Professional account.", connectLabel: "Connect Meta" },
+  snapchat: { title: "Snapchat Account", description: "Connect your official Snapchat account.", connectLabel: "Connect Snapchat" },
+  threads: { title: "Threads Account", description: "Connect your Meta Threads account.", connectLabel: "Connect Meta" },
+  tiktok: { title: "TikTok Account", description: "Connect your official TikTok account.", connectLabel: "Connect TikTok" },
+  x: { title: "X Account", description: "Connect your official X account.", connectLabel: "Connect X" },
+  youtube: { title: "YouTube Channel", description: "Connect your official Google YouTube channel.", connectLabel: "Connect Google" },
+};
+
+// Brand-colored full-width Connect button per platform, matched to each
+// platform's own brand color.
+const CONNECT_BUTTON_STYLE: Record<string, string> = {
+  facebook: "bg-[#1877F2] text-white hover:bg-[#1877F2]/90",
+  instagram: "bg-gradient-to-r from-[#fa7e1e] via-[#d62976] to-[#962fbf] text-white hover:opacity-90",
+  snapchat: "bg-[#FFFC00] text-black hover:bg-[#FFFC00]/90",
+  threads: "bg-black text-white hover:bg-black/90",
+  tiktok: "bg-black text-white hover:bg-black/90",
+  x: "bg-black text-white hover:bg-black/90",
+  youtube: "bg-[#FF0000] text-white hover:bg-[#FF0000]/90",
+};
+
 // Content categories, matching the taxonomy platforms like YouTube use for a
 // channel's primary topic. "Creator" stays first as the generic default —
 // every studio is created with it, and not every studio fits a niche.
@@ -819,36 +844,41 @@ function ConnectionsSection({ studioId }: { studioId: string }) {
               const c = realConnections.find((x) => x.platform === platform) ?? null;
               const Icon = PLATFORM_ICONS[platform] ?? Link2;
               const health = c ? connectionHealth(c) : null;
+              const copy = PLATFORM_CARD_COPY[platform] ?? {
+                title: spec.label,
+                description: spec.description,
+                connectLabel: `Connect ${spec.label}`,
+              };
               return (
-                <div key={platform} className="relative flex w-64 shrink-0 flex-col gap-2.5 rounded-2xl border p-3">
+                <div key={platform} className="relative flex w-72 shrink-0 flex-col gap-3 rounded-2xl border p-4">
                   <div className="flex items-start justify-between gap-2">
                     {c?.profileImage ? (
-                      <div className="relative size-9 shrink-0">
-                        <div className="size-9 overflow-hidden rounded-full bg-muted">
+                      <div className="relative size-10 shrink-0">
+                        <div className="size-10 overflow-hidden rounded-full bg-muted">
                           {/* eslint-disable-next-line @next/next/no-img-element -- external platform avatar */}
                           <img src={c.profileImage} alt="" className="size-full object-cover" />
                         </div>
-                        <Icon className="absolute -right-1 -bottom-1 size-3.5 rounded-[25%] ring-2 ring-background" />
+                        <Icon className="absolute -right-1 -bottom-1 size-4 rounded-[25%] ring-2 ring-background" />
                       </div>
                     ) : (
-                      <Icon className="size-9 shrink-0 rounded-[25%]" />
+                      <Icon className="size-10 shrink-0 rounded-[25%]" />
                     )}
                     <span
                       className={cn(
-                        "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium",
+                        "shrink-0 rounded-full border px-2.5 py-0.5 text-[11px] font-medium",
                         c
                           ? health?.ok
-                            ? "bg-emerald-500/10 text-emerald-600"
-                            : "bg-destructive/10 text-destructive"
-                          : "bg-muted text-muted-foreground"
+                            ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600"
+                            : "border-destructive/20 bg-destructive/10 text-destructive"
+                          : "border-border bg-muted text-muted-foreground"
                       )}
                     >
                       {c ? (health?.ok ? "Connected" : "Needs attention") : "Not connected"}
                     </span>
                   </div>
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{spec.label}</p>
-                    <p className="truncate text-xs text-muted-foreground">{c ? c.accountName : spec.description}</p>
+                    <p className="truncate text-sm font-semibold">{copy.title}</p>
+                    <p className="truncate text-xs text-muted-foreground">{c ? c.accountName : copy.description}</p>
                     {c?.accountHandle && <p className="truncate text-xs text-muted-foreground">{c.accountHandle}</p>}
                     {health && (
                       <p className={cn("mt-1 text-[11px]", health.ok ? "text-muted-foreground" : "text-destructive")}>
@@ -856,8 +886,9 @@ function ConnectionsSection({ studioId }: { studioId: string }) {
                       </p>
                     )}
                   </div>
+                  <div className="border-t border-border" />
                   {c ? (
-                    <div className="mt-auto flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5">
                       <Button
                         type="button"
                         size="sm"
@@ -916,18 +947,19 @@ function ConnectionsSection({ studioId }: { studioId: string }) {
                       </div>
                     </div>
                   ) : (
-                    <Button
+                    <button
                       type="button"
-                      size="sm"
-                      className="mt-auto"
                       onClick={() => {
                         setConnectPlatform(platform);
                         setAccountName("");
                       }}
+                      className={cn(
+                        "flex w-full items-center justify-center rounded-full px-4 py-2 text-sm font-semibold transition-opacity",
+                        CONNECT_BUTTON_STYLE[platform] ?? "bg-primary text-primary-foreground hover:opacity-90"
+                      )}
                     >
-                      <Plus className="size-3.5" />
-                      Connect
-                    </Button>
+                      {copy.connectLabel}
+                    </button>
                   )}
                 </div>
               );
