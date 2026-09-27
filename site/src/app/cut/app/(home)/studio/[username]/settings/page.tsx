@@ -8,8 +8,6 @@ import {
   ArrowRight,
   Calendar as CalendarIcon,
   Camera,
-  CircleCheck,
-  CircleX,
   Info,
   Link2,
   Loader2,
@@ -31,7 +29,6 @@ import {
   IMPORTABLE_PLATFORMS,
   isConnectionUsable,
   OAUTH_CAPABLE_PLATFORMS,
-  PUBLISHABLE_PLATFORMS,
   STUDIO_SOURCE_CONNECTION_ID,
   STUDIO_SOURCE_PLATFORM,
   YOUTUBE_PLATFORMS,
@@ -766,7 +763,6 @@ function ConnectionsSection({ studioId }: { studioId: string }) {
   const disconnect = useDisconnectStudioConnection(studioId);
   const rename = useRenameStudioConnection(studioId);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
-  const [showConnectOptions, setShowConnectOptions] = useState(false);
   const [connectPlatform, setConnectPlatform] = useState<string | null>(null);
   const [accountName, setAccountName] = useState("");
   const [renaming, setRenaming] = useState<StudioConnection | null>(null);
@@ -797,7 +793,6 @@ function ConnectionsSection({ studioId }: { studioId: string }) {
   };
 
   const closeConnectDialog = () => {
-    setShowConnectOptions(false);
     setConnectPlatform(null);
     setAccountName("");
   };
@@ -807,142 +802,133 @@ function ConnectionsSection({ studioId }: { studioId: string }) {
   const realConnections = (connections.data?.connections ?? []).filter(
     (c) => c.platform !== STUDIO_SOURCE_PLATFORM
   );
-  // One account per platform per studio — a platform already connected here
-  // drops out of "Connect a new account" until it's removed.
-  const connectedPlatforms = new Set(realConnections.map((c) => c.platform));
 
   return (
     <div className="space-y-6">
       <div>
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-semibold">Connected accounts</p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setShowConnectOptions((v) => !v)}
-          >
-            <Plus className="size-3.5" />
-            Add account
-          </Button>
-        </div>
+        <p className="text-sm font-semibold">Platforms</p>
         {connections.isLoading ? (
           <div className="mt-3 rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
             Loading…
           </div>
-        ) : realConnections.length === 0 ? (
-          <div className="mt-3 flex flex-col items-center gap-1.5 rounded-2xl border border-dashed p-8 text-center">
-            <Link2 className="mb-1 size-5 text-muted-foreground" />
-            <p className="text-sm font-semibold">No accounts connected</p>
-            <p className="text-sm text-muted-foreground">
-              Connect your YouTube, TikTok, or other social accounts to post your videos.
-            </p>
-          </div>
         ) : (
-          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {realConnections.map((c) => {
-              const Icon = PLATFORM_ICONS[c.platform] ?? Link2;
-              const health = connectionHealth(c);
+          <div className="-mx-6 mt-3 flex gap-3 overflow-x-auto px-6 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {OAUTH_CAPABLE_PLATFORMS.map((platform) => {
+              const spec = SOCIAL_APP_SEED.find((s) => s.platform === platform);
+              if (!spec) return null;
+              const c = realConnections.find((x) => x.platform === platform) ?? null;
+              const Icon = PLATFORM_ICONS[platform] ?? Link2;
+              const health = c ? connectionHealth(c) : null;
               return (
-                <div key={c.id} className="relative flex flex-col gap-2.5 rounded-2xl border p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex min-w-0 items-center gap-2.5">
-                      {c.profileImage ? (
-                        <div className="relative size-8 shrink-0">
-                          <div className="size-8 overflow-hidden rounded-full bg-muted">
-                            {/* eslint-disable-next-line @next/next/no-img-element -- external platform avatar */}
-                            <img src={c.profileImage} alt="" className="size-full object-cover" />
-                          </div>
-                          <Icon className="absolute -right-1 -bottom-1 size-3.5 rounded-[25%] ring-2 ring-background" />
+                <div key={platform} className="relative flex w-64 shrink-0 flex-col gap-2.5 rounded-2xl border p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    {c?.profileImage ? (
+                      <div className="relative size-9 shrink-0">
+                        <div className="size-9 overflow-hidden rounded-full bg-muted">
+                          {/* eslint-disable-next-line @next/next/no-img-element -- external platform avatar */}
+                          <img src={c.profileImage} alt="" className="size-full object-cover" />
                         </div>
-                      ) : (
-                        <Icon className="size-8 shrink-0 rounded-[25%]" />
-                      )}
-                      <div className="min-w-0">
-                        <p className="flex items-center gap-1 truncate text-sm font-medium">
-                          <span className="truncate">{c.accountName}</span>
-                          {health.ok ? (
-                            <CircleCheck className="size-3.5 shrink-0 text-emerald-500" />
-                          ) : (
-                            <CircleX className="size-3.5 shrink-0 text-destructive" />
-                          )}
-                        </p>
-                        {c.accountHandle && <p className="text-xs text-muted-foreground">{c.accountHandle}</p>}
+                        <Icon className="absolute -right-1 -bottom-1 size-3.5 rounded-[25%] ring-2 ring-background" />
                       </div>
-                    </div>
-                    <div className="relative shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => setMenuOpenId(menuOpenId === c.id ? null : c.id)}
-                        className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                      >
-                        <MoreVertical className="size-4" />
-                      </button>
-                      {menuOpenId === c.id && (
-                        <div className="absolute right-0 z-10 mt-1 w-32 rounded-lg border bg-popover p-1 text-xs shadow-md">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setRenaming(c);
-                              setRenameValue(c.accountName);
-                              setMenuOpenId(null);
-                            }}
-                            className="block w-full rounded px-2 py-1.5 text-left hover:bg-muted"
-                          >
-                            Rename
-                          </button>
-                          {YOUTUBE_PLATFORMS.includes(c.platform) && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setViewingAnalyticsFor(c);
-                                setMenuOpenId(null);
-                              }}
-                              className="block w-full rounded px-2 py-1.5 text-left hover:bg-muted"
-                            >
-                              Analysis
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              connect(c.platform, c.accountName);
-                              setMenuOpenId(null);
-                            }}
-                            className="block w-full rounded px-2 py-1.5 text-left hover:bg-muted"
-                          >
-                            Reconnect
-                          </button>
-                          <button
-                            type="button"
-                            disabled={disconnect.isPending}
-                            onClick={() => {
-                              disconnect.mutate(c.id);
-                              setMenuOpenId(null);
-                            }}
-                            className="block w-full rounded px-2 py-1.5 text-left text-destructive hover:bg-destructive/10"
-                          >
-                            Delete
-                          </button>
-                        </div>
+                    ) : (
+                      <Icon className="size-9 shrink-0 rounded-[25%]" />
+                    )}
+                    <span
+                      className={cn(
+                        "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium",
+                        c
+                          ? health?.ok
+                            ? "bg-emerald-500/10 text-emerald-600"
+                            : "bg-destructive/10 text-destructive"
+                          : "bg-muted text-muted-foreground"
                       )}
-                    </div>
+                    >
+                      {c ? (health?.ok ? "Connected" : "Needs attention") : "Not connected"}
+                    </span>
                   </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <p className={cn("text-xs", health.ok ? "text-muted-foreground" : "text-destructive")}>
-                      {health.label}
-                    </p>
-                    {!health.ok && (
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{spec.label}</p>
+                    <p className="truncate text-xs text-muted-foreground">{c ? c.accountName : spec.description}</p>
+                    {c?.accountHandle && <p className="truncate text-xs text-muted-foreground">{c.accountHandle}</p>}
+                    {health && (
+                      <p className={cn("mt-1 text-[11px]", health.ok ? "text-muted-foreground" : "text-destructive")}>
+                        {health.label}
+                      </p>
+                    )}
+                  </div>
+                  {c ? (
+                    <div className="mt-auto flex items-center gap-1.5">
                       <Button
                         type="button"
                         size="sm"
                         variant="outline"
+                        className="flex-1"
                         onClick={() => connect(c.platform, c.accountName)}
                       >
                         Reconnect
                       </Button>
-                    )}
-                  </div>
+                      <div className="relative shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setMenuOpenId(menuOpenId === c.id ? null : c.id)}
+                          className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                        >
+                          <MoreVertical className="size-4" />
+                        </button>
+                        {menuOpenId === c.id && (
+                          <div className="absolute right-0 bottom-full z-10 mb-1 w-32 rounded-lg border bg-popover p-1 text-xs shadow-md">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRenaming(c);
+                                setRenameValue(c.accountName);
+                                setMenuOpenId(null);
+                              }}
+                              className="block w-full rounded px-2 py-1.5 text-left hover:bg-muted"
+                            >
+                              Rename
+                            </button>
+                            {YOUTUBE_PLATFORMS.includes(c.platform) && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setViewingAnalyticsFor(c);
+                                  setMenuOpenId(null);
+                                }}
+                                className="block w-full rounded px-2 py-1.5 text-left hover:bg-muted"
+                              >
+                                Analysis
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              disabled={disconnect.isPending}
+                              onClick={() => {
+                                disconnect.mutate(c.id);
+                                setMenuOpenId(null);
+                              }}
+                              className="block w-full rounded px-2 py-1.5 text-left text-destructive hover:bg-destructive/10"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="mt-auto"
+                      onClick={() => {
+                        setConnectPlatform(platform);
+                        setAccountName("");
+                      }}
+                    >
+                      <Plus className="size-3.5" />
+                      Connect
+                    </Button>
+                  )}
                 </div>
               );
             })}
@@ -950,79 +936,47 @@ function ConnectionsSection({ studioId }: { studioId: string }) {
         )}
       </div>
 
-      <Dialog open={showConnectOptions} onOpenChange={(open) => !open && closeConnectDialog()}>
+      <Dialog open={connectPlatform !== null} onOpenChange={(open) => !open && closeConnectDialog()}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Connect a new account</DialogTitle>
-          </DialogHeader>
-          {!connectPlatform ? (
-            <div className="grid grid-cols-2 gap-2.5">
-              {SOCIAL_APP_SEED.filter(
-                (s) => OAUTH_CAPABLE_PLATFORMS.includes(s.platform) && !connectedPlatforms.has(s.platform)
-              ).map((s) => {
-                const Icon = PLATFORM_ICONS[s.platform] ?? Link2;
-                const canPublish = PUBLISHABLE_PLATFORMS.includes(s.platform);
-                return (
-                  <button
-                    key={s.platform}
-                    type="button"
-                    onClick={() => {
-                      setConnectPlatform(s.platform);
-                      setAccountName("");
-                    }}
-                    className="flex items-center gap-2.5 rounded-xl border p-3 text-left transition-colors hover:border-ring hover:bg-muted/40"
-                  >
-                    <Icon className="size-9 shrink-0 rounded-[25%]" />
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{s.label}</p>
-                      <p className="text-[11px] text-muted-foreground">{canPublish ? "Publish" : "Connect"}</p>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
+          {connectPlatform &&
             (() => {
               const spec = SOCIAL_APP_SEED.find((s) => s.platform === connectPlatform);
               if (!spec) return null;
               return (
-                <div className="space-y-3">
-                  <button
-                    type="button"
-                    onClick={() => setConnectPlatform(null)}
-                    className="text-xs text-primary hover:underline"
-                  >
-                    ← Change platform
-                  </button>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Name this connection</Label>
-                    <Input
-                      value={accountName}
-                      onChange={(e) => setAccountName(e.target.value)}
-                      placeholder={spec.label}
-                      autoFocus
-                    />
+                <>
+                  <DialogHeader>
+                    <DialogTitle>Connect {spec.label}</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Name this connection</Label>
+                      <Input
+                        value={accountName}
+                        onChange={(e) => setAccountName(e.target.value)}
+                        placeholder={spec.label}
+                        autoFocus
+                      />
+                    </div>
+                    {META_PICKER_NOTES[connectPlatform] && (
+                      <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                        <Info className="mt-0.5 size-3.5 shrink-0" />
+                        {META_PICKER_NOTES[connectPlatform]}
+                      </p>
+                    )}
+                    <Button
+                      className="w-full"
+                      disabled={!accountName.trim()}
+                      onClick={() => {
+                        connect(connectPlatform, accountName.trim());
+                        closeConnectDialog();
+                      }}
+                    >
+                      Connect via {spec.label}
+                    </Button>
                   </div>
-                  {META_PICKER_NOTES[connectPlatform] && (
-                    <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
-                      <Info className="mt-0.5 size-3.5 shrink-0" />
-                      {META_PICKER_NOTES[connectPlatform]}
-                    </p>
-                  )}
-                  <Button
-                    className="w-full"
-                    disabled={!accountName.trim()}
-                    onClick={() => {
-                      connect(connectPlatform, accountName.trim());
-                      closeConnectDialog();
-                    }}
-                  >
-                    Connect via {spec.label}
-                  </Button>
-                </div>
+                </>
               );
-            })()
-          )}
+            })()}
         </DialogContent>
       </Dialog>
 
