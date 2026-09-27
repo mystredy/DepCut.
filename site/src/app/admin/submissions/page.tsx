@@ -242,6 +242,7 @@ function SubmissionCard({
   const [score, setScore] = useState(8);
   const [creatorSplit, setCreatorSplit] = useState(50);
   const [remark, setRemark] = useState("");
+  const [videoSource, setVideoSource] = useState<"main" | "verification">("main");
   const cardRef = useRef<HTMLDivElement>(null);
 
   const maxRates = item.maxRates ?? 10;
@@ -264,9 +265,14 @@ function SubmissionCard({
       )}
     >
       <div className="flex w-full shrink-0 flex-col justify-between rounded-xl border bg-black p-3 text-white md:w-64">
-        {item.hasVideo ? (
+        {item.hasVideo || (videoSource === "verification" && item.hasVerification) ? (
           <video
-            src={`/api/submissions/${item.id}/video`}
+            key={videoSource}
+            src={
+              videoSource === "verification"
+                ? `/api/submissions/${item.id}/verification`
+                : `/api/submissions/${item.id}/video`
+            }
             controls
             muted
             className="mb-2 aspect-video w-full rounded-lg bg-black object-contain"
@@ -274,6 +280,34 @@ function SubmissionCard({
         ) : (
           <div className="mb-2 flex aspect-video w-full items-center justify-center rounded-lg bg-white/5 text-xs text-white/50">
             No video attached
+          </div>
+        )}
+        {item.hasVerification && (
+          <div className="mb-2 flex gap-1.5">
+            <button
+              type="button"
+              onClick={() => setVideoSource("main")}
+              className={cn(
+                "flex-1 rounded-lg border px-2 py-1 text-[11px] font-medium transition-colors",
+                videoSource === "main"
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-white/15 bg-white/5 text-white/70 hover:bg-white/10"
+              )}
+            >
+              Submission
+            </button>
+            <button
+              type="button"
+              onClick={() => setVideoSource("verification")}
+              className={cn(
+                "flex-1 rounded-lg border px-2 py-1 text-[11px] font-medium transition-colors",
+                videoSource === "verification"
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-white/15 bg-white/5 text-white/70 hover:bg-white/10"
+              )}
+            >
+              Verification
+            </button>
           </div>
         )}
         <div>
