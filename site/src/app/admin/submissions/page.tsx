@@ -357,7 +357,7 @@ function SubmissionCard({
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className="text-primary hover:underline"
+                        className="font-medium text-[#FF0000] hover:underline"
                       >
                         🔗 YouTube
                       </a>
