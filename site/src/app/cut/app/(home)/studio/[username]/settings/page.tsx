@@ -177,14 +177,16 @@ export default function StudioSettingsPage({ params }: { params: Promise<{ usern
 
   return (
     <div className="w-full px-6 pb-24">
-      <Link
-        href={`/@${studio.username}`}
-        className="mt-4 flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" />
-        Back
-      </Link>
-      <h1 className="mt-2 text-lg font-semibold tracking-tight">{studio.name} — Settings</h1>
+      <div className="mt-4 flex items-center gap-3">
+        <Link
+          href={`/@${studio.username}`}
+          className="flex shrink-0 items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="size-4" />
+          Back
+        </Link>
+        <h1 className="truncate text-lg font-semibold tracking-tight">{studio.name} — Settings</h1>
+      </div>
 
       <div className="-mx-6 mt-4 flex gap-1 overflow-x-auto border-b border-border px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {SECTIONS.map((s) => (
