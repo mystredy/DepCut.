@@ -317,6 +317,10 @@ export type AdminSubmission = {
   studioId: string | null;
   studio: { id: string; name: string; username: string } | null;
   publishingid: string | null;
+  // The Pro edit-code or YouTube link the artist matched this submission
+  // against — see YOUTUBE_URL_RE in submit-project/[id]/page.tsx for the
+  // same "is this a link" check.
+  editCode: string | null;
   submitterName: string;
   submitterEmail: string;
   reviewedByName: string | null;

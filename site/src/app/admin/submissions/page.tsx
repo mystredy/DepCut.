@@ -36,6 +36,10 @@ const PROVIDER_LABELS: Record<string, string> = {
   lucidlink: "LucidLink Filespace",
 };
 
+// Matches submit-project/[id]/page.tsx's YOUTUBE_URL_RE — same "is this
+// edit code actually a YouTube link" check, for display here.
+const YOUTUBE_URL_RE = /^https?:\/\/(www\.|m\.)?(youtube\.com\/|youtu\.be\/)/i;
+
 export default function AdminSubmissionsPage() {
   return (
     <Suspense>
@@ -337,7 +341,30 @@ function SubmissionCard({
               <h3 className="text-base font-semibold">{item.title}</h3>
               <p className="text-xs text-muted-foreground">
                 {item.submitterName} · {item.submitterEmail}
-                {item.category && ` · ${item.category.emoji} ${item.category.name}`}
+                {item.category && (
+                  <>
+                    {" "}
+                    · {item.category.emoji} {item.category.name}
+                  </>
+                )}
+                {item.editCode &&
+                  (YOUTUBE_URL_RE.test(item.editCode.trim()) ? (
+                    <>
+                      {" "}
+                      ·{" "}
+                      <a
+                        href={item.editCode.trim()}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-primary hover:underline"
+                      >
+                        🔗 YouTube
+                      </a>
+                    </>
+                  ) : (
+                    <> · {item.editCode}</>
+                  ))}
               </p>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1.5">
