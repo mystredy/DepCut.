@@ -264,26 +264,39 @@ function SubmissionCard({
         highlighted && "ring-2 ring-primary ring-offset-2 ring-offset-background"
       )}
     >
-      <div className="flex w-full shrink-0 flex-col justify-between rounded-xl border bg-black p-3 text-white md:w-64">
-        {item.hasVideo || (videoSource === "verification" && item.hasVerification) ? (
-          <video
-            key={videoSource}
-            src={
-              videoSource === "verification"
-                ? `/api/submissions/${item.id}/verification`
-                : `/api/submissions/${item.id}/video`
-            }
-            controls
-            muted
-            className="mb-2 aspect-video w-full rounded-lg bg-black object-contain"
-          />
-        ) : (
-          <div className="mb-2 flex aspect-video w-full items-center justify-center rounded-lg bg-white/5 text-xs text-white/50">
-            No video attached
+      <div className="flex w-full shrink-0 flex-col gap-2 md:w-64">
+        <div className="flex flex-1 flex-col justify-between rounded-xl border bg-black p-3 text-white">
+          {item.hasVideo || (videoSource === "verification" && item.hasVerification) ? (
+            <video
+              key={videoSource}
+              src={
+                videoSource === "verification"
+                  ? `/api/submissions/${item.id}/verification`
+                  : `/api/submissions/${item.id}/video`
+              }
+              controls
+              muted
+              className="mb-2 aspect-video w-full rounded-lg bg-black object-contain"
+            />
+          ) : (
+            <div className="mb-2 flex aspect-video w-full items-center justify-center rounded-lg bg-white/5 text-xs text-white/50">
+              No video attached
+            </div>
+          )}
+          <div>
+            <p className="text-[10px] uppercase tracking-wide text-emerald-400">Potential Payout</p>
+            <p className="text-lg font-bold">
+              {maxRates} Rates
+              {rate > 0 && (
+                <span className="ml-1 text-xs font-normal text-white/60">
+                  (≈ ${(maxRates * rate).toFixed(2)})
+                </span>
+              )}
+            </p>
           </div>
-        )}
+        </div>
         {item.hasVerification && (
-          <div className="mb-2 flex gap-1.5">
+          <div className="flex gap-1.5">
             <button
               type="button"
               onClick={() => setVideoSource("main")}
@@ -291,7 +304,7 @@ function SubmissionCard({
                 "flex-1 rounded-lg border px-2 py-1 text-[11px] font-medium transition-colors",
                 videoSource === "main"
                   ? "border-primary bg-primary text-primary-foreground"
-                  : "border-white/15 bg-white/5 text-white/70 hover:bg-white/10"
+                  : "bg-muted/30 text-muted-foreground hover:bg-muted/60"
               )}
             >
               Submission
@@ -303,24 +316,13 @@ function SubmissionCard({
                 "flex-1 rounded-lg border px-2 py-1 text-[11px] font-medium transition-colors",
                 videoSource === "verification"
                   ? "border-primary bg-primary text-primary-foreground"
-                  : "border-white/15 bg-white/5 text-white/70 hover:bg-white/10"
+                  : "bg-muted/30 text-muted-foreground hover:bg-muted/60"
               )}
             >
               Verification
             </button>
           </div>
         )}
-        <div>
-          <p className="text-[10px] uppercase tracking-wide text-emerald-400">Potential Payout</p>
-          <p className="text-lg font-bold">
-            {maxRates} Rates
-            {rate > 0 && (
-              <span className="ml-1 text-xs font-normal text-white/60">
-                (≈ ${(maxRates * rate).toFixed(2)})
-              </span>
-            )}
-          </p>
-        </div>
       </div>
 
       <div className="flex flex-1 flex-col justify-between gap-4">
