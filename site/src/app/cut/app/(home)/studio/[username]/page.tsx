@@ -1111,6 +1111,7 @@ function DropViewer({
   const [paused, setPaused] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const touchStartY = useRef<number | null>(null);
 
   useEffect(() => {
     setPaused(false);
@@ -1139,6 +1140,22 @@ function DropViewer({
   }, [index, drops.length, onClose, onIndexChange]);
 
   if (!drop) return null;
+
+  const SWIPE_THRESHOLD = 50;
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0]?.clientY ?? null;
+  };
+
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const startY = touchStartY.current;
+    touchStartY.current = null;
+    if (startY === null) return;
+    const endY = e.changedTouches[0]?.clientY ?? startY;
+    const delta = startY - endY;
+    if (delta > SWIPE_THRESHOLD && index < drops.length - 1) onIndexChange(index + 1);
+    else if (delta < -SWIPE_THRESHOLD && index > 0) onIndexChange(index - 1);
+  };
 
   const togglePlay = () => {
     const video = videoRef.current;
@@ -1180,6 +1197,8 @@ function DropViewer({
       <div
         className="relative aspect-[9/16] h-full max-h-[92vh] max-w-full overflow-hidden rounded-2xl bg-black"
         onClick={(e) => e.stopPropagation()}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
       >
         <video
           key={drop.id}
