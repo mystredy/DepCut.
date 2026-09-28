@@ -180,13 +180,20 @@ export function extractYoutubeVideoId(url: string): string | null {
 }
 
 // View/like counts for a submitted YouTube link, checked on demand from the
-// admin review card. Tries ytdl-core first (info.videoDetails already
-// carries both — viewCount as a string, likes as a possibly-null number
-// when the uploader hides it), same as extractYoutubeViaYtdlCore above.
-// Falls back to RapidAPI's /video/details on the same bot-check failure
-// that extractYoutube falls back on.
+// admin review card. Three tiers, cheapest/most-likely-to-work first:
+// 1. ytdl-core's own videoDetails (viewCount as a string, likes as a
+//    possibly-null number when the uploader hides it) — same source
+//    extractYoutubeViaYtdlCore above uses, no key needed.
+// 2. RapidAPI's /video/details, same fallback extractYoutube uses.
+// 3. The official YouTube Data API v3 (googleapis.com/youtube/v3/videos),
+//    using GEMINI_API_KEY/GOOGLE_API_KEY (see gemini-client.ts) since no
+//    key dedicated to YouTube Data API exists here — YOUTUBE_API_KEY is
+//    actually YouTube OAuth's client id (see social-apps-seed.ts), not a
+//    Google API key, so it can't be used as one. Public statistics need
+//    no OAuth scope, just any key with the YouTube Data API enabled.
 export async function getYoutubeQuickStats(url: string): Promise<{ views: number; likes: number | null }> {
   if (!ytdl.validateURL(url)) throw new UrlImportError("That doesn't look like a valid YouTube video link.");
+  const videoId = ytdl.getVideoID(url);
   try {
     return await getYoutubeQuickStatsViaYtdlCore(url);
   } catch (e) {
@@ -194,8 +201,16 @@ export async function getYoutubeQuickStats(url: string): Promise<{ views: number
       "[url-import] ytdl-core YouTube stats lookup failed, falling back to RapidAPI —",
       e instanceof Error ? e.message : e,
     );
-    return getYoutubeQuickStatsViaRapidApi(ytdl.getVideoID(url));
   }
+  try {
+    return await getYoutubeQuickStatsViaRapidApi(videoId);
+  } catch (e) {
+    console.error(
+      "[url-import] RapidAPI YouTube stats lookup failed, falling back to the YouTube Data API —",
+      e instanceof Error ? e.message : e,
+    );
+  }
+  return getYoutubeQuickStatsViaGoogleApi(videoId);
 }
 
 async function getYoutubeQuickStatsViaYtdlCore(url: string): Promise<{ views: number; likes: number | null }> {
@@ -269,6 +284,34 @@ async function getYoutubeQuickStatsViaRapidApi(videoId: string): Promise<{ views
   return {
     likes: toStatNumber(data.like_count ?? data.likes ?? data.likeCount),
     views,
+  };
+}
+
+// Same env var precedence gemini-client.ts's geminiApiKeyEnvVars uses.
+// Whether YouTube Data API v3 is actually enabled on that key's GCP
+// project isn't guaranteed — this is the last of three tiers, so a 403
+// here just surfaces as a clear error instead of silently doing nothing.
+async function getYoutubeQuickStatsViaGoogleApi(videoId: string): Promise<{ views: number; likes: number | null }> {
+  const apiKey = process.env.GEMINI_API_KEY?.trim() || process.env.GOOGLE_API_KEY?.trim();
+  if (!apiKey) throw new UrlImportError("No Google API key is configured.");
+
+  const res = await Promise.race([
+    fetch(
+      `https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${encodeURIComponent(videoId)}&key=${encodeURIComponent(apiKey)}`,
+    ),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 10_000)),
+  ]);
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw new UrlImportError(`YouTube Data API rejected the request: ${data?.error?.message ?? res.status}`);
+  }
+
+  const stats = data?.items?.[0]?.statistics;
+  if (!stats) throw new UrlImportError("That video isn't on YouTube anymore.");
+
+  return {
+    likes: stats.likeCount != null ? Number(stats.likeCount) : null,
+    views: Number(stats.viewCount ?? 0),
   };
 }
 
