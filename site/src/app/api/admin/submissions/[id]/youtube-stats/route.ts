@@ -9,8 +9,8 @@ export const dynamic = "force-dynamic";
 type RouteContext = { params: Promise<{ id: string }> };
 
 // Matches admin/submissions/page.tsx's YOUTUBE_URL_RE — same check, so this
-// only ever runs ytdl-core against a link the review card already shows as
-// a YouTube link.
+// only ever runs against a link the review card already shows as a
+// YouTube link.
 const YOUTUBE_URL_RE = /^https?:\/\/(www\.|m\.)?(youtube\.com\/|youtu\.be\/)/i;
 
 // Super-user only. Checks the submission's editCode against YouTube on

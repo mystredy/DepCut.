@@ -180,12 +180,25 @@ export function extractYoutubeVideoId(url: string): string | null {
 }
 
 // View/like counts for a submitted YouTube link, checked on demand from the
-// admin review card. ytdl-core's own videoDetails already carries both
-// (viewCount as a string, likes as a possibly-null number when the uploader
-// hides it) — no YouTube Data API key needed. No RapidAPI fallback: that
-// path's response type (RapidApiVideoDetails above) doesn't carry stats.
+// admin review card. Tries ytdl-core first (info.videoDetails already
+// carries both — viewCount as a string, likes as a possibly-null number
+// when the uploader hides it), same as extractYoutubeViaYtdlCore above.
+// Falls back to RapidAPI's /video/details on the same bot-check failure
+// that extractYoutube falls back on.
 export async function getYoutubeQuickStats(url: string): Promise<{ views: number; likes: number | null }> {
   if (!ytdl.validateURL(url)) throw new UrlImportError("That doesn't look like a valid YouTube video link.");
+  try {
+    return await getYoutubeQuickStatsViaYtdlCore(url);
+  } catch (e) {
+    console.error(
+      "[url-import] ytdl-core YouTube stats lookup failed, falling back to RapidAPI —",
+      e instanceof Error ? e.message : e,
+    );
+    return getYoutubeQuickStatsViaRapidApi(ytdl.getVideoID(url));
+  }
+}
+
+async function getYoutubeQuickStatsViaYtdlCore(url: string): Promise<{ views: number; likes: number | null }> {
   let info: Awaited<ReturnType<typeof ytdl.getBasicInfo>>;
   try {
     info = await Promise.race([
@@ -198,6 +211,50 @@ export async function getYoutubeQuickStats(url: string): Promise<{ views: number
   return {
     likes: info.videoDetails.likes ?? null,
     views: Number(info.videoDetails.viewCount) || 0,
+  };
+}
+
+// RapidAPI's own field names for this endpoint aren't pinned down in our
+// docs, so this reads whichever of the common variants shows up rather than
+// betting on one exact name.
+type RapidApiVideoStats = {
+  view_count?: number | string;
+  views?: number | string;
+  viewCount?: number | string;
+  like_count?: number | string;
+  likes?: number | string;
+  likeCount?: number | string;
+};
+
+function toStatNumber(value: number | string | undefined): number | null {
+  if (value == null) return null;
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+async function getYoutubeQuickStatsViaRapidApi(videoId: string): Promise<{ views: number; likes: number | null }> {
+  const apiKey = process.env.RAPIDAPI_KEY?.trim();
+  if (!apiKey) throw new UrlImportError("RapidAPI is not configured.");
+
+  const res = await Promise.race([
+    fetch(`https://${RAPIDAPI_HOST}/video/details?video_id=${encodeURIComponent(videoId)}`, {
+      headers: {
+        "Content-Type": "application/json",
+        "x-rapidapi-host": RAPIDAPI_HOST,
+        "x-rapidapi-key": apiKey,
+      },
+    }),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 10_000)),
+  ]);
+  if (!res.ok) throw new UrlImportError(`RapidAPI returned ${res.status}.`);
+
+  const data = (await res.json()) as RapidApiVideoStats;
+  const views = toStatNumber(data.view_count ?? data.views ?? data.viewCount);
+  if (views == null) throw new UrlImportError("RapidAPI didn't return a view count for that video.");
+
+  return {
+    likes: toStatNumber(data.like_count ?? data.likes ?? data.likeCount),
+    views,
   };
 }
 
