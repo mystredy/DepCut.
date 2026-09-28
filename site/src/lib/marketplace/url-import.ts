@@ -319,6 +319,59 @@ async function getYoutubeQuickStatsViaGoogleApi(videoId: string): Promise<{ view
   };
 }
 
+// videos?part=snippet has no @handle field (only channelId/channelTitle) —
+// studio matching in edit-code/route.ts already checks channelId first, so
+// this tier leaving handle null just means it can't win on the secondary
+// (handle) match path, not that matching fails outright.
+type GoogleApiVideoSnippet = {
+  title?: string;
+  description?: string;
+  channelId?: string;
+  tags?: string[];
+  thumbnails?: Record<string, { url?: string }>;
+};
+
+async function extractYoutubeViaGoogleApi(url: string, videoId: string): Promise<UrlImportResult> {
+  const apiKey = process.env.GOOGLE_API_KEY?.trim() || process.env.GEMINI_API_KEY?.trim();
+  if (!apiKey) throw new UrlImportError("No Google API key is configured.");
+
+  const res = await Promise.race([
+    fetch(
+      `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${encodeURIComponent(videoId)}&key=${encodeURIComponent(apiKey)}`,
+    ),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 10_000)),
+  ]);
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw new UrlImportError(`YouTube Data API rejected the request: ${data?.error?.message ?? res.status}`);
+  }
+
+  const snippet = data?.items?.[0]?.snippet as GoogleApiVideoSnippet | undefined;
+  if (!snippet?.title) throw new UrlImportError("YouTube Data API returned no video details.");
+
+  const thumbnails = snippet.thumbnails ?? {};
+  const thumbnailUrl =
+    thumbnails.maxres?.url ??
+    thumbnails.standard?.url ??
+    thumbnails.high?.url ??
+    thumbnails.medium?.url ??
+    thumbnails.default?.url ??
+    null;
+
+  return {
+    channelId: snippet.channelId ?? null,
+    description: snippet.description ?? "",
+    handle: null,
+    platform: "youtube",
+    sourceUrl: url,
+    tags: snippet.tags ?? [],
+    thumbnailUrl,
+    title: snippet.title,
+    videoId,
+    videoUrl: null,
+  };
+}
+
 async function extractYoutube(url: string): Promise<UrlImportResult> {
   if (!ytdl.validateURL(url)) throw new UrlImportError("That doesn't look like a valid YouTube video link.");
   const videoId = ytdl.getVideoID(url);
@@ -329,8 +382,16 @@ async function extractYoutube(url: string): Promise<UrlImportResult> {
       "[url-import] ytdl-core YouTube lookup failed, falling back to RapidAPI —",
       e instanceof Error ? e.message : e,
     );
-    return extractYoutubeViaRapidApi(url, videoId);
   }
+  try {
+    return await extractYoutubeViaRapidApi(url, videoId);
+  } catch (e) {
+    console.error(
+      "[url-import] RapidAPI YouTube lookup failed, falling back to the YouTube Data API —",
+      e instanceof Error ? e.message : e,
+    );
+  }
+  return extractYoutubeViaGoogleApi(url, videoId);
 }
 
 const RAPIDAPI_DOWNLOAD_HOST = "youtube-info-download-api.p.rapidapi.com";
