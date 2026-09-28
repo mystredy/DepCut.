@@ -236,17 +236,31 @@ async function getYoutubeQuickStatsViaRapidApi(videoId: string): Promise<{ views
   const apiKey = process.env.RAPIDAPI_KEY?.trim();
   if (!apiKey) throw new UrlImportError("RapidAPI is not configured.");
 
-  const res = await Promise.race([
-    fetch(`https://${RAPIDAPI_HOST}/video/details?video_id=${encodeURIComponent(videoId)}`, {
-      headers: {
-        "Content-Type": "application/json",
-        "x-rapidapi-host": RAPIDAPI_HOST,
-        "x-rapidapi-key": apiKey,
-      },
-    }),
-    new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 10_000)),
-  ]);
-  if (!res.ok) throw new UrlImportError(`RapidAPI returned ${res.status}.`);
+  const fetchOnce = () =>
+    Promise.race([
+      fetch(`https://${RAPIDAPI_HOST}/video/details?video_id=${encodeURIComponent(videoId)}`, {
+        headers: {
+          "Content-Type": "application/json",
+          "x-rapidapi-host": RAPIDAPI_HOST,
+          "x-rapidapi-key": apiKey,
+        },
+      }),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 10_000)),
+    ]);
+
+  let res = await fetchOnce();
+  // RapidAPI rate-limits (429) are shared across every feature that calls
+  // this host (video downloads, metadata extraction, this stats check) —
+  // a burst from any of them can trip it, and it's usually gone within a
+  // couple seconds, so one short retry clears most of them.
+  if (res.status === 429) {
+    await new Promise((r) => setTimeout(r, 2000));
+    res = await fetchOnce();
+  }
+  if (!res.ok) {
+    const message = res.status === 429 ? "RapidAPI is rate-limited right now — try again in a moment." : `RapidAPI returned ${res.status}.`;
+    throw new UrlImportError(message);
+  }
 
   const data = (await res.json()) as RapidApiVideoStats;
   const views = toStatNumber(data.view_count ?? data.views ?? data.viewCount);
