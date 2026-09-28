@@ -453,6 +453,11 @@ function SubmissionCard({
                           <label className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
                             Quality evaluation
                           </label>
+                          {item.earnedRates != null && (
+                            <span className="rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-600">
+                              Earned {item.earnedRates}
+                            </span>
+                          )}
                           <button
                             type="button"
                             onClick={() => {
