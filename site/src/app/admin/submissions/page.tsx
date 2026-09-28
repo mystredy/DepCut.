@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ClipboardCheck,
   Clock,
+  Download,
   FileText,
   Link2,
   Loader2,
@@ -16,6 +17,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { downloadFromUrl } from "@/lib/generationExport";
 import { useSiteDateFormat } from "@/lib/siteDateFormat";
 import { cn } from "@/lib/utils";
 import {
@@ -348,6 +350,14 @@ function SubmissionCard({
               )}
             >
               Verification
+            </button>
+            <button
+              type="button"
+              onClick={() => downloadFromUrl(`/api/submissions/${item.id}/verification?download=1`)}
+              title="Download verification video"
+              className="flex items-center justify-center rounded-lg border px-2 py-1 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+            >
+              <Download className="size-3.5" />
             </button>
           </div>
         )}

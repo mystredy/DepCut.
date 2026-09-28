@@ -5,7 +5,7 @@ import {
   notFoundResponse,
   withDepCutAuth,
 } from "@/lib/depcut-api-auth";
-import { presignGet } from "@/cut/server/cloud/r2";
+import { presignGet, presignGetDownload } from "@/cut/server/cloud/r2";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -30,11 +30,14 @@ export const GET = withDepCutAuth(async (request, context: RouteContext) => {
   }
 
   const asset = await prisma.submissionAsset.findUnique({
-    select: { storageKey: true },
+    select: { fileName: true, storageKey: true },
     where: { submissionId_type: { submissionId: id, type: "verification" } },
   });
   if (!asset?.storageKey) return notFoundResponse();
 
-  const url = await presignGet(asset.storageKey);
+  const wantsDownload = new URL(request.url).searchParams.has("download");
+  const url = wantsDownload
+    ? await presignGetDownload(asset.storageKey, asset.fileName ?? `verification-${id}.mp4`)
+    : await presignGet(asset.storageKey);
   return NextResponse.redirect(url);
 });
