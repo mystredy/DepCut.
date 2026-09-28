@@ -186,11 +186,12 @@ export function extractYoutubeVideoId(url: string): string | null {
 //    extractYoutubeViaYtdlCore above uses, no key needed.
 // 2. RapidAPI's /video/details, same fallback extractYoutube uses.
 // 3. The official YouTube Data API v3 (googleapis.com/youtube/v3/videos),
-//    using GEMINI_API_KEY/GOOGLE_API_KEY (see gemini-client.ts) since no
-//    key dedicated to YouTube Data API exists here — YOUTUBE_API_KEY is
-//    actually YouTube OAuth's client id (see social-apps-seed.ts), not a
-//    Google API key, so it can't be used as one. Public statistics need
-//    no OAuth scope, just any key with the YouTube Data API enabled.
+//    using GOOGLE_API_KEY, falling back to the GEMINI_API_KEY gemini-
+//    client.ts uses, since no key dedicated to YouTube Data API exists
+//    here — YOUTUBE_API_KEY is actually YouTube OAuth's client id (see
+//    social-apps-seed.ts), not a Google API key, so it can't be used as
+//    one. Public statistics need no OAuth scope, just any key with the
+//    YouTube Data API enabled.
 export async function getYoutubeQuickStats(url: string): Promise<{ views: number; likes: number | null }> {
   if (!ytdl.validateURL(url)) throw new UrlImportError("That doesn't look like a valid YouTube video link.");
   const videoId = ytdl.getVideoID(url);
@@ -287,12 +288,15 @@ async function getYoutubeQuickStatsViaRapidApi(videoId: string): Promise<{ views
   };
 }
 
-// Same env var precedence gemini-client.ts's geminiApiKeyEnvVars uses.
-// Whether YouTube Data API v3 is actually enabled on that key's GCP
-// project isn't guaranteed — this is the last of three tiers, so a 403
-// here just surfaces as a clear error instead of silently doing nothing.
+// GOOGLE_API_KEY first — a plain GCP API key is more likely to have
+// YouTube Data API v3 enabled on its project than the Gemini/AI Studio
+// key gemini-client.ts uses, which GEMINI_API_KEY falls back to when
+// GOOGLE_API_KEY isn't set. Whether YouTube Data API v3 is actually
+// enabled on either key's project isn't guaranteed — this is the last
+// of three tiers, so a 403 here just surfaces as a clear error instead
+// of silently doing nothing.
 async function getYoutubeQuickStatsViaGoogleApi(videoId: string): Promise<{ views: number; likes: number | null }> {
-  const apiKey = process.env.GEMINI_API_KEY?.trim() || process.env.GOOGLE_API_KEY?.trim();
+  const apiKey = process.env.GOOGLE_API_KEY?.trim() || process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) throw new UrlImportError("No Google API key is configured.");
 
   const res = await Promise.race([
