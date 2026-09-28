@@ -101,28 +101,11 @@ function connectionHealth(c: StudioConnection): { ok: boolean; label: string } {
   if (!isConnectionUsable(c)) {
     return { label: "Token expired or invalid", ok: false };
   }
-  // Every platform's refresh token silently renews its access token, so
-  // tokenExpiresAt normally isn't worth showing — except YouTube, where we
-  // now surface Google's own expiresAt instead of hiding it behind "No
-  // expiration date".
-  if ((!YOUTUBE_PLATFORMS.includes(c.platform) && c.hasRefreshToken) || !c.tokenExpiresAt) {
+  if (c.hasRefreshToken || !c.tokenExpiresAt) {
     return { label: "No expiration date", ok: true };
   }
-  return { label: `Token expires in ${formatDuration(new Date(c.tokenExpiresAt).getTime() - Date.now())}`, ok: true };
-}
-
-// YouTube's own access token expires roughly hourly and gets silently
-// renewed via the refresh token before it lapses — connectionHealth above
-// always sees a window well under a day, so rounding straight to days
-// (Math.ceil) would show "1 day" nearly all the time. Minutes/hours below a
-// day, days above it.
-function formatDuration(ms: number): string {
-  const minutes = Math.ceil(ms / (60 * 1000));
-  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"}`;
-  const hours = Math.ceil(ms / (60 * 60 * 1000));
-  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"}`;
-  const days = Math.ceil(ms / (24 * 60 * 60 * 1000));
-  return `${days} day${days === 1 ? "" : "s"}`;
+  const days = Math.ceil((new Date(c.tokenExpiresAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+  return { label: `Token expires in ${days} day${days === 1 ? "" : "s"}`, ok: true };
 }
 
 // Facebook/Instagram OAuth connects the main account, not the destination
