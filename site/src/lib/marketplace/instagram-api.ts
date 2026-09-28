@@ -88,3 +88,101 @@ export async function listInstagramMedia(igUserId: string, accessToken: string):
     .filter((item) => (item.media_type === "VIDEO" || item.media_type === "REELS") && item.media_url)
     .map((item) => ({ caption: item.caption, id: item.id, mediaUrl: item.media_url!, timestamp: item.timestamp }));
 }
+
+export type InstagramAnalyticsRow = {
+  day: string;
+  views: number;
+  estimatedMinutesWatched: number;
+  likes: number;
+  subscribersGained: number;
+};
+
+// Account-level daily stats (instagram_manage_insights) — same shape as
+// getYoutubeChannelAnalytics, not per-video, since a connection isn't tied
+// to a specific upload. Instagram's Insights API has no account-level
+// watch-time metric, so estimatedMinutesWatched always reads 0.
+// follower_count comes back as a running total rather than a daily delta,
+// so subscribersGained is derived by diffing consecutive days — the first
+// day in range has nothing to diff against, so it reads 0.
+export async function getInstagramAccountAnalytics(opts: {
+  accessToken: string;
+  igUserId: string;
+  days?: number;
+}): Promise<InstagramAnalyticsRow[]> {
+  const days = opts.days ?? 28;
+  const until = new Date();
+  const since = new Date(until.getTime() - days * 24 * 60 * 60 * 1000);
+
+  const params = new URLSearchParams({
+    access_token: opts.accessToken,
+    metric: "reach,likes,follower_count",
+    metric_type: "time_series",
+    period: "day",
+    since: String(Math.floor(since.getTime() / 1000)),
+    until: String(Math.floor(until.getTime() / 1000)),
+  });
+  const res = await fetch(`https://graph.facebook.com/v21.0/${opts.igUserId}/insights?${params.toString()}`);
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !Array.isArray(data?.data)) {
+    throw new InstagramApiError(`Instagram rejected the insights request: ${data?.error?.message ?? res.status}`);
+  }
+
+  const byDay = new Map<string, { views: number; likes: number; followerCount: number | null }>();
+  const dayKey = (isoTime: string) => isoTime.slice(0, 10);
+  const cell = (day: string) => {
+    let c = byDay.get(day);
+    if (!c) {
+      c = { followerCount: null, likes: 0, views: 0 };
+      byDay.set(day, c);
+    }
+    return c;
+  };
+
+  const metrics = data.data as Array<{ name: string; values: Array<{ value: number; end_time: string }> }>;
+  for (const metric of metrics) {
+    for (const { value, end_time } of metric.values) {
+      const day = dayKey(end_time);
+      if (metric.name === "reach") cell(day).views += Number(value ?? 0);
+      else if (metric.name === "likes") cell(day).likes += Number(value ?? 0);
+      else if (metric.name === "follower_count") cell(day).followerCount = Number(value ?? 0);
+    }
+  }
+
+  const sortedDays = [...byDay.entries()].sort(([a], [b]) => a.localeCompare(b));
+  let prevFollowers: number | null = null;
+  return sortedDays.map(([day, c]) => {
+    const subscribersGained = prevFollowers !== null && c.followerCount !== null ? c.followerCount - prevFollowers : 0;
+    if (c.followerCount !== null) prevFollowers = c.followerCount;
+    return { day, estimatedMinutesWatched: 0, likes: c.likes, subscribersGained, views: c.views };
+  });
+}
+
+// A single published Reel's own totals — the Instagram side of "View
+// analytics" on a Drop, same shape as getYoutubeVideoStats. Likes/comments
+// come straight off the media node (instagram_basic, already granted); the
+// view count needs instagram_manage_insights via the media insights edge.
+export async function getInstagramMediaStats(opts: {
+  accessToken: string;
+  mediaId: string;
+}): Promise<{ views: number; likes: number; comments: number }> {
+  const [nodeRes, insightsRes] = await Promise.all([
+    fetch(
+      `https://graph.facebook.com/v21.0/${opts.mediaId}?fields=like_count,comments_count&access_token=${encodeURIComponent(opts.accessToken)}`,
+    ),
+    fetch(
+      `https://graph.facebook.com/v21.0/${opts.mediaId}/insights?metric=reach&access_token=${encodeURIComponent(opts.accessToken)}`,
+    ),
+  ]);
+  const node = await nodeRes.json().catch(() => null);
+  if (!nodeRes.ok) {
+    throw new InstagramApiError(`Instagram rejected the request: ${node?.error?.message ?? nodeRes.status}`);
+  }
+  const insights = await insightsRes.json().catch(() => null);
+  const views = insights?.data?.[0]?.values?.[0]?.value;
+
+  return {
+    comments: Number(node?.comments_count ?? 0),
+    likes: Number(node?.like_count ?? 0),
+    views: Number(views ?? 0),
+  };
+}
