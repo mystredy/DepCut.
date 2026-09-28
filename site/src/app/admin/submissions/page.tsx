@@ -381,10 +381,10 @@ function SubmissionCard({
                           👁 {formatCompactCount(youtubeStats.data.views)}
                           {youtubeStats.data.likes != null && (
                             <> · 👍 {formatCompactCount(youtubeStats.data.likes)}</>
-                          )}
+                          )}{" "}
                         </span>
                       ) : youtubeStats.isPending ? (
-                        <Loader2 className="inline size-3 animate-spin align-middle text-muted-foreground" />
+                        <Loader2 className="mr-1 inline size-3.5 animate-spin align-middle text-muted-foreground" />
                       ) : (
                         <button
                           type="button"
@@ -394,14 +394,13 @@ function SubmissionCard({
                           }}
                           title={youtubeStats.error?.message ?? "Check views and likes"}
                           className={cn(
-                            "align-middle text-muted-foreground hover:text-foreground",
+                            "mr-1 inline-flex size-4 items-center justify-center rounded align-middle text-muted-foreground hover:bg-muted hover:text-foreground",
                             youtubeStats.isError && "text-destructive"
                           )}
                         >
-                          <BarChart2 className="inline size-3" />
+                          <BarChart2 className="size-3.5" />
                         </button>
-                      )}{" "}
-                      ·{" "}
+                      )}
                       <a
                         href={item.editCode.trim()}
                         target="_blank"
