@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Suspense } from "react";
 import "./globals.css";
@@ -26,6 +26,23 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     description: description ?? "A video editor that does all its work on your Mac.",
     title: appName,
+    manifest: "/manifest.webmanifest",
+    // Makes "Add to Home Screen" on iOS Safari launch standalone (no
+    // browser chrome) instead of just bookmarking the URL — Android/Chrome's
+    // install behavior comes from manifest.ts instead, this is iOS-only.
+    appleWebApp: {
+      capable: true,
+      title: appName,
+      statusBarStyle: "black-translucent",
+    },
+  };
+}
+
+// themeColor lives on Viewport, not Metadata, as of this Next.js version.
+export async function generateViewport(): Promise<Viewport> {
+  const { accentColor } = await publicSiteSettings();
+  return {
+    themeColor: accentColor ?? "#0a0a0a",
   };
 }
 
