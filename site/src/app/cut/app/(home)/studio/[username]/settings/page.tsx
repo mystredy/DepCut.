@@ -28,12 +28,12 @@ import { ImageCropDialog } from "@/cut/components/ImageCropDialog";
 import { CachedImg } from "@/cut/components/CachedImg";
 import { UserAvatar } from "@/cut/components/UserAvatar";
 import {
+  ANALYTICS_PLATFORMS,
   IMPORTABLE_PLATFORMS,
   isConnectionUsable,
   OAUTH_CAPABLE_PLATFORMS,
   STUDIO_SOURCE_CONNECTION_ID,
   STUDIO_SOURCE_PLATFORM,
-  YOUTUBE_PLATFORMS,
 } from "@/lib/marketplace/oauth-providers";
 import { PLATFORM_ICONS, StudioSourceIcon } from "@/lib/marketplace/platform-icons";
 import { SOCIAL_APP_SEED } from "@/lib/marketplace/social-apps-seed";
@@ -965,7 +965,7 @@ function ConnectionsSection({ studioId }: { studioId: string }) {
                             >
                               Rename
                             </button>
-                            {YOUTUBE_PLATFORMS.includes(c.platform) && (
+                            {ANALYTICS_PLATFORMS.includes(c.platform) && (
                               <button
                                 type="button"
                                 onClick={() => {

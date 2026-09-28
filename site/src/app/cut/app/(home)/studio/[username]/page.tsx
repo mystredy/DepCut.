@@ -60,10 +60,10 @@ import { CachedImg } from "@/cut/components/CachedImg";
 import { UserAvatar } from "@/cut/components/UserAvatar";
 import { useCutBase } from "@/cut/lib/nav";
 import {
+  ANALYTICS_PLATFORMS,
   isConnectionUsable,
   platformProfileUrl,
   STUDIO_SOURCE_PLATFORM,
-  YOUTUBE_PLATFORMS,
 } from "@/lib/marketplace/oauth-providers";
 import { PLATFORM_ICONS } from "@/lib/marketplace/platform-icons";
 import { SOCIAL_APP_SEED } from "@/lib/marketplace/social-apps-seed";
@@ -540,7 +540,7 @@ export default function StudioPage({ params }: { params: Promise<{ username: str
                           Repurpose
                         </DropdownMenuItem>
                       )}
-                      {drop.publications.some((p) => YOUTUBE_PLATFORMS.includes(p.platform) && p.externalPostId) && (
+                      {drop.publications.some((p) => ANALYTICS_PLATFORMS.includes(p.platform) && p.externalPostId) && (
                         <DropdownMenuItem
                           className="px-2 py-1 text-xs"
                           onClick={() => setAnalyticsDrop(drop)}

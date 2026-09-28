@@ -39,6 +39,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  ANALYTICS_PLATFORMS,
   OAUTH_CAPABLE_PLATFORMS,
   PUBLISHABLE_PLATFORMS,
   STUDIO_SOURCE_PLATFORM,
@@ -188,7 +189,7 @@ function ConnectionCard({ connection }: { connection: AdminSocialConnection }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [posting, setPosting] = useState(false);
   const [viewingAnalytics, setViewingAnalytics] = useState(false);
-  const isYoutube = YOUTUBE_PLATFORMS.includes(connection.platform);
+  const hasAnalytics = ANALYTICS_PLATFORMS.includes(connection.platform);
   const isPublishable = PUBLISHABLE_PLATFORMS.includes(connection.platform);
 
   // A refresh token means an expired access token is routine, not a
@@ -267,7 +268,7 @@ function ConnectionCard({ connection }: { connection: AdminSocialConnection }) {
                 Post video
               </button>
             )}
-            {isYoutube && (
+            {hasAnalytics && (
               <button
                 type="button"
                 onClick={() => {
@@ -308,7 +309,7 @@ function ConnectionCard({ connection }: { connection: AdminSocialConnection }) {
       {isPublishable && (
         <PostVideoDialog connection={connection} open={posting} onClose={() => setPosting(false)} />
       )}
-      {isYoutube && (
+      {hasAnalytics && (
         <AnalyticsDialog connection={connection} open={viewingAnalytics} onClose={() => setViewingAnalytics(false)} />
       )}
     </div>
