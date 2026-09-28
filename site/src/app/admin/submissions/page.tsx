@@ -376,15 +376,25 @@ function SubmissionCard({
                     <>
                       {" "}
                       ·{" "}
+                      <a
+                        href={item.editCode.trim()}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="font-medium text-[#FF0000] hover:underline"
+                      >
+                        🔗 YouTube
+                      </a>{" "}
+                      •
                       {youtubeStats.data ? (
                         <span className="font-medium">
-                          👁 {formatCompactCount(youtubeStats.data.views)}
+                          📊 👁 {formatCompactCount(youtubeStats.data.views)}
                           {youtubeStats.data.likes != null && (
                             <> · 👍 {formatCompactCount(youtubeStats.data.likes)}</>
-                          )}{" "}
+                          )}
                         </span>
                       ) : youtubeStats.isPending ? (
-                        <Loader2 className="mr-1 inline size-3.5 animate-spin align-middle text-muted-foreground" />
+                        <Loader2 className="ml-1 inline size-3.5 animate-spin align-middle text-muted-foreground" />
                       ) : (
                         <button
                           type="button"
@@ -394,22 +404,13 @@ function SubmissionCard({
                           }}
                           title={youtubeStats.error?.message ?? "Check views and likes"}
                           className={cn(
-                            "mr-1 inline-flex size-4 items-center justify-center rounded align-middle text-muted-foreground hover:bg-muted hover:text-foreground",
+                            "ml-1 inline-flex size-4 items-center justify-center rounded align-middle text-muted-foreground hover:bg-muted hover:text-foreground",
                             youtubeStats.isError && "text-destructive"
                           )}
                         >
                           <BarChart2 className="size-3.5" />
                         </button>
                       )}
-                      <a
-                        href={item.editCode.trim()}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="font-medium text-[#FF0000] hover:underline"
-                      >
-                        🔗 YouTube
-                      </a>
                     </>
                   ) : (
                     <> · {item.editCode}</>
