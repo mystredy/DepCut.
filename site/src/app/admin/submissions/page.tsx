@@ -13,6 +13,7 @@ import {
   useAdminFinanceExchangeRate,
   useAdminSubmissions,
   useReviewSubmission,
+  useSetSubmissionMaxRate,
 } from "@/queries/admin";
 
 type MainTab = "pending" | "my-reviews";
@@ -241,16 +242,22 @@ function SubmissionCard({
   onReject: () => void;
 }) {
   const review = useReviewSubmission();
+  const setMaxRate = useSetSubmissionMaxRate();
   const { formatDateTime } = useSiteDateFormat();
   const [decision, setDecision] = useState<"approve" | "reject" | null>(null);
   const [score, setScore] = useState(8);
   const [creatorSplit, setCreatorSplit] = useState(50);
   const [remark, setRemark] = useState("");
   const [videoSource, setVideoSource] = useState<"main" | "verification">("main");
+  const [maxRateEditorOpen, setMaxRateEditorOpen] = useState(false);
+  const [maxRateDraft, setMaxRateDraft] = useState(10);
   const cardRef = useRef<HTMLDivElement>(null);
 
-  const maxRates = item.maxRates ?? 10;
-  const previewEarned = Math.round((maxRates * score) / 10);
+  // Mirrors the server's own precedence (see admin/submissions/[id]/route.ts's
+  // approve action): the submission's own maxRates, once an admin has set
+  // one, overrides its linked Task's default ceiling.
+  const maxRates = item.maxRates ?? item.task?.maxRates ?? 10;
+  const previewEarned = maxRates === 0 ? 0 : Math.round((maxRates * score) / 10);
 
   useEffect(() => {
     if (!highlighted) return;
@@ -446,24 +453,56 @@ function SubmissionCard({
                           <label className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
                             Quality evaluation
                           </label>
-                          {item.maxRates != null && (
-                            <span className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-semibold text-muted-foreground">
-                              Max {item.maxRates}
-                            </span>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMaxRateDraft(maxRates);
+                              setMaxRateEditorOpen((v) => !v);
+                            }}
+                            className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-semibold text-muted-foreground hover:bg-muted/70"
+                          >
+                            Max {maxRates}
+                          </button>
                         </span>
                         <span className="text-[11px] font-bold text-primary">
                           {score}/10 → {previewEarned} Rates
                         </span>
                       </div>
+                      {maxRateEditorOpen && (
+                        <div className="space-y-1 rounded-md bg-background/60 px-2 py-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+                              Max rate override
+                            </span>
+                            <span className="text-[11px] font-bold">{maxRateDraft}</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={1}
+                            max={20}
+                            step={1}
+                            value={maxRateDraft}
+                            onChange={(e) => setMaxRateDraft(Number(e.target.value))}
+                            onMouseUp={() => setMaxRate.mutate({ id: item.id, maxRates: maxRateDraft })}
+                            onTouchEnd={() => setMaxRate.mutate({ id: item.id, maxRates: maxRateDraft })}
+                            className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-muted accent-primary"
+                          />
+                        </div>
+                      )}
+                      {maxRates === 0 && (
+                        <p className="text-[10px] text-destructive">
+                          Max rate is 0 — raise it above to rate this submission.
+                        </p>
+                      )}
                       <input
                         type="range"
                         min={1}
                         max={10}
                         step={1}
                         value={score}
+                        disabled={maxRates === 0}
                         onChange={(e) => setScore(Number(e.target.value))}
-                        className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-muted accent-primary"
+                        className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-muted accent-primary disabled:cursor-not-allowed disabled:opacity-40"
                       />
                     </div>
 

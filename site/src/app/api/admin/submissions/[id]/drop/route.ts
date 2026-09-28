@@ -52,7 +52,7 @@ export const PATCH = withDepCutAuth(async (request, context: RouteContext) => {
       assets: true,
       category: { select: { emoji: true, name: true } },
       studio: { select: { id: true, name: true, username: true } },
-      task: { select: { id: true, title: true } },
+      task: { select: { id: true, title: true, maxRates: true } },
       user: { select: { displayName: true, email: true, name: true } },
       workspace: { select: { editorEmail: true, provider: true, workspaceName: true } },
     },

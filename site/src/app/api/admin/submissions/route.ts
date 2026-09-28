@@ -24,7 +24,7 @@ export const GET = withDepCutAuth(async (request) => {
       assets: true,
       category: { select: { emoji: true, name: true } },
       project: { select: { name: true } },
-      task: { select: { id: true, title: true } },
+      task: { select: { id: true, title: true, maxRates: true } },
       studio: { select: { id: true, name: true, username: true } },
       user: { select: { displayName: true, email: true, name: true } },
       workspace: { select: { editorEmail: true, provider: true, workspaceName: true } },

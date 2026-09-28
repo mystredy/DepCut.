@@ -29,8 +29,9 @@ const actionSchema = z.discriminatedUnion("action", [
 
 // Super-user only. Advances a submission through the review lifecycle:
 // Pending -> InReview -> Qualified/Disqualified. Approving computes
-// earnedRates from the linked Task's maxRates (or the submission's own
-// maxRates) scaled by the assigned score out of 10.
+// earnedRates from the submission's own maxRates (an admin override, once
+// set — see [id]/max-rate/route.ts) or else the linked Task's maxRates,
+// scaled by the assigned score out of 10.
 export const PATCH = withDepCutAuth(async (request, context: RouteContext) => {
   if (!(await isDepCutSuperUser(request.depcut.userId))) {
     return NextResponse.json(
@@ -80,7 +81,10 @@ export const PATCH = withDepCutAuth(async (request, context: RouteContext) => {
       where: { id },
     });
   } else if (input.action === "approve") {
-    const maxRates = submission.task?.maxRates ?? submission.maxRates ?? 10;
+    // A submission's own maxRates, once an admin sets one (see
+    // [id]/max-rate/route.ts), is a deliberate per-submission override —
+    // it takes priority over the linked Task's default ceiling.
+    const maxRates = submission.maxRates ?? submission.task?.maxRates ?? 10;
     const earnedRates = Math.round((maxRates * input.reviewScore) / 10);
     const creatorWorkdone = input.creatorWorkdone ?? 50;
     const submitterName =

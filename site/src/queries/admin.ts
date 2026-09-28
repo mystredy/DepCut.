@@ -305,7 +305,7 @@ export type AdminSubmission = {
   creatorWorkdone: number | null;
   publisherWorkdone: number | null;
   taskId: string | null;
-  task: { id: string; title: string } | null;
+  task: { id: string; title: string; maxRates: number } | null;
   // The connected workspace (see UserWorkspaceLink) picked for this
   // submission, if any — null for an internal (projectId-linked) submission
   // or one where the artist never connected/selected one.
@@ -808,6 +808,21 @@ export function useTagSubmissionDrop() {
     mutationFn: ({ id, ...body }: { id: string; publishingid: string; studioId: string }) =>
       apiFetch<{ submission: AdminSubmission }>(`/api/admin/submissions/${id}/drop`, {
         body: JSON.stringify(body),
+        method: "PATCH",
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: adminSubmissionsQueryKey }),
+  });
+}
+
+// Sets a submission's own maxRates — a per-submission override of its
+// linked Task's default payout ceiling; see /api/admin/submissions/[id]/
+// max-rate.
+export function useSetSubmissionMaxRate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, maxRates }: { id: string; maxRates: number }) =>
+      apiFetch<{ maxRates: number }>(`/api/admin/submissions/${id}/max-rate`, {
+        body: JSON.stringify({ maxRates }),
         method: "PATCH",
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: adminSubmissionsQueryKey }),
