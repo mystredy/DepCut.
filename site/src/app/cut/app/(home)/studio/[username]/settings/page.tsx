@@ -101,7 +101,11 @@ function connectionHealth(c: StudioConnection): { ok: boolean; label: string } {
   if (!isConnectionUsable(c)) {
     return { label: "Token expired or invalid", ok: false };
   }
-  if (c.hasRefreshToken || !c.tokenExpiresAt) {
+  // Every platform's refresh token silently renews its access token, so
+  // tokenExpiresAt normally isn't worth showing — except YouTube, where we
+  // now surface Google's own expiresAt instead of hiding it behind "No
+  // expiration date".
+  if ((!YOUTUBE_PLATFORMS.includes(c.platform) && c.hasRefreshToken) || !c.tokenExpiresAt) {
     return { label: "No expiration date", ok: true };
   }
   const days = Math.ceil((new Date(c.tokenExpiresAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
@@ -996,7 +1000,7 @@ function ConnectionsSection({ studioId }: { studioId: string }) {
                               }}
                               className="block w-full rounded px-2 py-1.5 text-left text-destructive hover:bg-destructive/10"
                             >
-                              Delete
+                              Disconnect
                             </button>
                           </div>
                         )}
