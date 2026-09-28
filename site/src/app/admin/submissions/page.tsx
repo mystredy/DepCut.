@@ -2,7 +2,17 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { CheckCircle2, ChevronDown, ClipboardCheck, Clock, FileText, Link2, Loader2, XCircle } from "lucide-react";
+import {
+  BarChart2,
+  CheckCircle2,
+  ChevronDown,
+  ClipboardCheck,
+  Clock,
+  FileText,
+  Link2,
+  Loader2,
+  XCircle,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -12,6 +22,7 @@ import {
   type AdminSubmission,
   useAdminFinanceExchangeRate,
   useAdminSubmissions,
+  useCheckSubmissionYoutubeStats,
   useReviewSubmission,
   useSetSubmissionMaxRate,
 } from "@/queries/admin";
@@ -21,6 +32,11 @@ type ReviewSubTab = "in-review" | "approved" | "rejected";
 
 function formatTabCount(count: number): string {
   return count > 9 ? "9+" : String(count);
+}
+
+const compactNumberFormat = new Intl.NumberFormat(undefined, { notation: "compact" });
+function formatCompactCount(count: number): string {
+  return compactNumberFormat.format(count);
 }
 
 // Matches submit-project/[id]/page.tsx's INITIAL_WORKSPACES — the friendly
@@ -243,6 +259,7 @@ function SubmissionCard({
 }) {
   const review = useReviewSubmission();
   const setMaxRate = useSetSubmissionMaxRate();
+  const youtubeStats = useCheckSubmissionYoutubeStats();
   const { formatDateTime } = useSiteDateFormat();
   const [decision, setDecision] = useState<"approve" | "reject" | null>(null);
   const [score, setScore] = useState(8);
@@ -358,6 +375,32 @@ function SubmissionCard({
                   (YOUTUBE_URL_RE.test(item.editCode.trim()) ? (
                     <>
                       {" "}
+                      ·{" "}
+                      {youtubeStats.data ? (
+                        <span className="font-medium">
+                          👁 {formatCompactCount(youtubeStats.data.views)}
+                          {youtubeStats.data.likes != null && (
+                            <> · 👍 {formatCompactCount(youtubeStats.data.likes)}</>
+                          )}
+                        </span>
+                      ) : youtubeStats.isPending ? (
+                        <Loader2 className="inline size-3 animate-spin align-middle text-muted-foreground" />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            youtubeStats.mutate(item.id);
+                          }}
+                          title={youtubeStats.error?.message ?? "Check views and likes"}
+                          className={cn(
+                            "align-middle text-muted-foreground hover:text-foreground",
+                            youtubeStats.isError && "text-destructive"
+                          )}
+                        >
+                          <BarChart2 className="inline size-3" />
+                        </button>
+                      )}{" "}
                       ·{" "}
                       <a
                         href={item.editCode.trim()}

@@ -179,6 +179,28 @@ export function extractYoutubeVideoId(url: string): string | null {
   return ytdl.validateURL(url) ? ytdl.getVideoID(url) : null;
 }
 
+// View/like counts for a submitted YouTube link, checked on demand from the
+// admin review card. ytdl-core's own videoDetails already carries both
+// (viewCount as a string, likes as a possibly-null number when the uploader
+// hides it) — no YouTube Data API key needed. No RapidAPI fallback: that
+// path's response type (RapidApiVideoDetails above) doesn't carry stats.
+export async function getYoutubeQuickStats(url: string): Promise<{ views: number; likes: number | null }> {
+  if (!ytdl.validateURL(url)) throw new UrlImportError("That doesn't look like a valid YouTube video link.");
+  let info: Awaited<ReturnType<typeof ytdl.getBasicInfo>>;
+  try {
+    info = await Promise.race([
+      ytdl.getBasicInfo(url),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 20_000)),
+    ]);
+  } catch (e) {
+    throw new UrlImportError(youtubeErrorMessage(e));
+  }
+  return {
+    likes: info.videoDetails.likes ?? null,
+    views: Number(info.videoDetails.viewCount) || 0,
+  };
+}
+
 async function extractYoutube(url: string): Promise<UrlImportResult> {
   if (!ytdl.validateURL(url)) throw new UrlImportError("That doesn't look like a valid YouTube video link.");
   const videoId = ytdl.getVideoID(url);

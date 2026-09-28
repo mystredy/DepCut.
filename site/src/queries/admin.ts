@@ -829,6 +829,16 @@ export function useSetSubmissionMaxRate() {
   });
 }
 
+// On-demand YouTube view/like check for a submission's editCode link; see
+// /api/admin/submissions/[id]/youtube-stats. Not cached in the submissions
+// list — a reviewer triggers it per card, result kept only in local state.
+export function useCheckSubmissionYoutubeStats() {
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<{ views: number; likes: number | null }>(`/api/admin/submissions/${id}/youtube-stats`),
+  });
+}
+
 export function useUpdateCategory() {
   const queryClient = useQueryClient();
   return useMutation({
