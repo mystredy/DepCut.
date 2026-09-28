@@ -5,7 +5,10 @@ import {
   notFoundResponse,
   withDepCutAuth,
 } from "@/lib/depcut-api-auth";
-import { YOUTUBE_PLATFORMS } from "@/lib/marketplace/oauth-providers";
+import { FacebookApiError, getFacebookPageAnalytics } from "@/lib/marketplace/facebook-api";
+import { getInstagramAccountAnalytics, InstagramApiError } from "@/lib/marketplace/instagram-api";
+import { getStoredPageAccessToken, MetaPagesError } from "@/lib/marketplace/meta-pages";
+import { ANALYTICS_PLATFORMS } from "@/lib/marketplace/oauth-providers";
 import { getValidAccessToken, SocialConnectionError } from "@/lib/marketplace/oauth-token-refresh";
 import { getYoutubeChannelAnalytics, YoutubeApiError } from "@/lib/marketplace/youtube-api";
 import { prisma } from "@/lib/prisma";
@@ -14,9 +17,10 @@ export const dynamic = "force-dynamic";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-// Super-user only. Channel-level daily stats (views, watch time, likes,
-// subscribers gained) for a connected YouTube account — yt-analytics.readonly,
-// not per-video, since a connection isn't tied to a specific upload.
+// Super-user only. Channel/account-level daily stats (views, watch time,
+// likes, subscribers gained) for a connected YouTube, Facebook, or
+// Instagram account — not per-video, since a connection isn't tied to a
+// specific upload.
 export const GET = withDepCutAuth(async (request, context: RouteContext) => {
   if (!(await isDepCutSuperUser(request.depcut.userId))) {
     return NextResponse.json(
@@ -29,9 +33,9 @@ export const GET = withDepCutAuth(async (request, context: RouteContext) => {
   const connection = await prisma.socialConnection.findUnique({ where: { id } });
   if (!connection) return notFoundResponse();
 
-  if (!YOUTUBE_PLATFORMS.includes(connection.platform)) {
+  if (!ANALYTICS_PLATFORMS.includes(connection.platform)) {
     return NextResponse.json(
-      { error: "Unsupported platform", message: "Analytics are only wired up for YouTube connections." },
+      { error: "Unsupported platform", message: "Analytics aren't wired up for this platform." },
       { status: 400 },
     );
   }
@@ -40,11 +44,32 @@ export const GET = withDepCutAuth(async (request, context: RouteContext) => {
   const days = Number.isFinite(daysParam) && daysParam > 0 ? Math.min(daysParam, 365) : 28;
 
   try {
-    const accessToken = await getValidAccessToken(id);
-    const rows = await getYoutubeChannelAnalytics({ accessToken, days });
+    if (connection.platform === "youtube") {
+      const accessToken = await getValidAccessToken(id);
+      const rows = await getYoutubeChannelAnalytics({ accessToken, days });
+      return NextResponse.json({ rows });
+    }
+
+    if (!connection.platformAccountId) {
+      return NextResponse.json(
+        { error: "Analytics failed", message: "This connection predates Page linking — remove it and connect again." },
+        { status: 400 },
+      );
+    }
+    const accessToken = await getStoredPageAccessToken(id);
+    const rows =
+      connection.platform === "facebook"
+        ? await getFacebookPageAnalytics({ accessToken, days, pageId: connection.platformAccountId })
+        : await getInstagramAccountAnalytics({ accessToken, days, igUserId: connection.platformAccountId });
     return NextResponse.json({ rows });
   } catch (error) {
-    if (error instanceof SocialConnectionError || error instanceof YoutubeApiError) {
+    if (
+      error instanceof SocialConnectionError ||
+      error instanceof YoutubeApiError ||
+      error instanceof FacebookApiError ||
+      error instanceof InstagramApiError ||
+      error instanceof MetaPagesError
+    ) {
       return NextResponse.json({ error: "Analytics failed", message: error.message }, { status: 502 });
     }
     throw error;

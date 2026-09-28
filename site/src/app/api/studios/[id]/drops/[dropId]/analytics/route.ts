@@ -5,7 +5,10 @@ import {
   withDepCutAuth,
   type DepCutAuthenticatedRequest,
 } from "@/lib/depcut-api-auth";
-import { YOUTUBE_PLATFORMS } from "@/lib/marketplace/oauth-providers";
+import { FacebookApiError, getFacebookVideoStats } from "@/lib/marketplace/facebook-api";
+import { getInstagramMediaStats, InstagramApiError } from "@/lib/marketplace/instagram-api";
+import { getStoredPageAccessToken, MetaPagesError } from "@/lib/marketplace/meta-pages";
+import { ANALYTICS_PLATFORMS } from "@/lib/marketplace/oauth-providers";
 import { getValidAccessToken, SocialConnectionError } from "@/lib/marketplace/oauth-token-refresh";
 import { getYoutubeVideoStats, YoutubeApiError } from "@/lib/marketplace/youtube-api";
 import { prisma } from "@/lib/prisma";
@@ -17,9 +20,9 @@ type RouteContext = { params: Promise<{ id: string; dropId: string }> };
 
 // Managers only. A drop's own view/like/comment totals off the platform it
 // was actually published to — see DropPublication (written by
-// social-workflow-publish.ts). Only YouTube exposes per-video statistics
-// through its public API today; the other platforms have nothing
-// equivalent to call.
+// social-workflow-publish.ts). YouTube, Facebook, and Instagram each expose
+// per-video statistics through their public API; the other platforms have
+// nothing equivalent to call.
 export const GET = withDepCutAuth(async (request: DepCutAuthenticatedRequest, context: RouteContext) => {
   const { id, dropId } = await context.params;
   const membership = await getStudioMembership(request.depcut.userId, id);
@@ -38,21 +41,36 @@ export const GET = withDepCutAuth(async (request: DepCutAuthenticatedRequest, co
   if (!drop || drop.studioId !== id) return notFoundResponse();
 
   const publication = drop.publications.find(
-    (p) => YOUTUBE_PLATFORMS.includes(p.platform) && p.externalPostId,
+    (p) => ANALYTICS_PLATFORMS.includes(p.platform) && p.externalPostId,
   );
   if (!publication?.externalPostId) {
     return NextResponse.json(
-      { error: "Unsupported platform", message: "Analytics are only available for a video published to YouTube." },
+      { error: "Unsupported platform", message: "Analytics aren't available for this video's platform." },
       { status: 400 },
     );
   }
 
   try {
-    const accessToken = await getValidAccessToken(publication.destinationConnectionId);
-    const stats = await getYoutubeVideoStats({ accessToken, videoId: publication.externalPostId });
+    if (publication.platform === "youtube") {
+      const accessToken = await getValidAccessToken(publication.destinationConnectionId);
+      const stats = await getYoutubeVideoStats({ accessToken, videoId: publication.externalPostId });
+      return NextResponse.json({ accountName: publication.destinationAccountName, ...stats });
+    }
+
+    const accessToken = await getStoredPageAccessToken(publication.destinationConnectionId);
+    const stats =
+      publication.platform === "facebook"
+        ? await getFacebookVideoStats({ accessToken, videoId: publication.externalPostId })
+        : await getInstagramMediaStats({ accessToken, mediaId: publication.externalPostId });
     return NextResponse.json({ accountName: publication.destinationAccountName, ...stats });
   } catch (error) {
-    if (error instanceof SocialConnectionError || error instanceof YoutubeApiError) {
+    if (
+      error instanceof SocialConnectionError ||
+      error instanceof YoutubeApiError ||
+      error instanceof FacebookApiError ||
+      error instanceof InstagramApiError ||
+      error instanceof MetaPagesError
+    ) {
       return NextResponse.json({ error: "Analytics failed", message: error.message }, { status: 502 });
     }
     throw error;
