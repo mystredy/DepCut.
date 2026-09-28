@@ -53,7 +53,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       };
     },
     platform: "facebook",
-    scope: "pages_show_list,pages_manage_posts,pages_read_engagement",
+    scope: "pages_show_list,pages_manage_posts,pages_read_engagement,read_insights",
     tokenAuthStyle: "meta_get",
     tokenUrl: "https://graph.facebook.com/v21.0/oauth/access_token",
     usesPkce: false,
@@ -74,7 +74,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       };
     },
     platform: "instagram",
-    scope: "instagram_basic,pages_show_list",
+    scope: "instagram_basic,pages_show_list,instagram_manage_insights",
     tokenAuthStyle: "meta_get",
     tokenUrl: "https://graph.facebook.com/v21.0/oauth/access_token",
     usesPkce: false,
@@ -217,6 +217,12 @@ export const OAUTH_CAPABLE_PLATFORMS = Object.keys(OAUTH_PROVIDERS);
 // pulls in the Prisma client, so client components can read this list
 // without bundling server-only code.
 export const YOUTUBE_PLATFORMS = ["youtube"];
+
+// Platforms with real analytics wiring — both channel/account-level daily
+// stats (getYoutubeChannelAnalytics / getFacebookPageAnalytics /
+// getInstagramAccountAnalytics) and per-video stats on a published Drop
+// (getYoutubeVideoStats / getFacebookVideoStats / getInstagramMediaStats).
+export const ANALYTICS_PLATFORMS = ["youtube", "facebook", "instagram"];
 
 // Platforms with a real "Post video" publish path today (see
 // /api/admin/social-connections/[id]/publish). Snapchat has no public API
