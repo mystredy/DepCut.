@@ -1,6 +1,12 @@
-// See archivo.ts for why this is its own module.
-import { Baloo_2 } from "next/font/google";
+// See archivo.ts for why this loads from a local file.
+import localFont from "next/font/local";
 
-const baloo2 = Baloo_2({ subsets: ["latin"], weight: ["600", "700"], preload: false });
+const baloo2 = localFont({
+  src: [
+    { path: "./files/baloo2-600.woff2", weight: "600", style: "normal" },
+    { path: "./files/baloo2-700.woff2", weight: "700", style: "normal" },
+  ],
+  preload: false,
+});
 
 export const fontFamily = baloo2.style.fontFamily;

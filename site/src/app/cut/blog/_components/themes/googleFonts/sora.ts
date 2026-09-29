@@ -1,6 +1,13 @@
-// See archivo.ts for why this is its own module.
-import { Sora } from "next/font/google";
+// See archivo.ts for why this loads from a local file.
+import localFont from "next/font/local";
 
-const sora = Sora({ subsets: ["latin"], weight: ["500", "600", "700"], preload: false });
+const sora = localFont({
+  src: [
+    { path: "./files/sora-500.woff2", weight: "500", style: "normal" },
+    { path: "./files/sora-600.woff2", weight: "600", style: "normal" },
+    { path: "./files/sora-700.woff2", weight: "700", style: "normal" },
+  ],
+  preload: false,
+});
 
 export const fontFamily = sora.style.fontFamily;

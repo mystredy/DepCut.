@@ -1,15 +1,19 @@
-// Every custom typeface a blog theme uses, self-hosted at build time via
-// next/font/google — same pattern as cut/lib/googleFonts.ts (the editor's
-// own font registry), kept separate since this one serves the public blog,
-// not the Cut editor. A theme names its faces through THEME_FONTS below,
-// never a raw <link> or an unloaded font-family string, so what themes.ts
-// promised (Fraunces, Playfair Display, JetBrains Mono, …) actually renders.
+// Every custom typeface a blog theme uses, kept separate from
+// cut/lib/googleFonts.ts (the editor's own font registry) since this one
+// serves the public blog, not the Cut editor. A theme names its faces
+// through THEME_FONTS below, never a raw <link> or an unloaded font-family
+// string, so what themes.ts promised (Fraunces, Playfair Display, JetBrains
+// Mono, …) actually renders.
 //
-// Each font is its own module under googleFonts/ rather than one
-// next/font/google() call per line here — Turbopack's font resolver
-// ("next/font/google queries have exactly one entry") was
-// nondeterministically failing on a different font each Vercel build when
-// this many calls shared one module.
+// Each font loads via next/font/local from a .woff2 committed under
+// googleFonts/files/ (fetched once from Google Fonts — see git history for
+// the fetch script) rather than next/font/google fetching from Google at
+// build time: Turbopack's Google Fonts resolver ("next/font/google queries
+// have exactly one entry") was nondeterministically failing on a different
+// font on real Vercel builds, network flakiness with nothing local to fall
+// back on. A committed file can't flake. Each font stays its own module
+// under googleFonts/ from the era when that was the mitigation being tried;
+// no longer load-bearing now, but no reason to undo it either.
 import { fontFamily as archivo } from "./googleFonts/archivo";
 import { fontFamily as baloo2 } from "./googleFonts/baloo2";
 import { fontFamily as caveatFamily } from "./googleFonts/caveat";

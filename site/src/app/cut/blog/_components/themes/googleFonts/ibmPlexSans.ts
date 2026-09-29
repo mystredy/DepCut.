@@ -1,6 +1,13 @@
-// See archivo.ts for why this is its own module.
-import { IBM_Plex_Sans } from "next/font/google";
+// See archivo.ts for why this loads from a local file.
+import localFont from "next/font/local";
 
-const ibmPlexSans = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600"], preload: false });
+const ibmPlexSans = localFont({
+  src: [
+    { path: "./files/ibmPlexSans-400.woff2", weight: "400", style: "normal" },
+    { path: "./files/ibmPlexSans-500.woff2", weight: "500", style: "normal" },
+    { path: "./files/ibmPlexSans-600.woff2", weight: "600", style: "normal" },
+  ],
+  preload: false,
+});
 
 export const fontFamily = ibmPlexSans.style.fontFamily;
