@@ -71,7 +71,11 @@ async function logIfRejected(event: TelegramNotificationEvent, chatId: string, r
 // the bot's own credentials (SocialAppConfig) — all of them, not a choice
 // of one. No-ops silently per resolveTelegramTargets. Callers fire this
 // alongside their real work and never let a notification problem fail it.
-export async function notifyTelegram(event: TelegramNotificationEvent, text: string): Promise<void> {
+export async function notifyTelegram(
+  event: TelegramNotificationEvent,
+  text: string,
+  parseMode?: "HTML"
+): Promise<void> {
   try {
     const targets = await resolveTelegramTargets(event);
     if (!targets) return;
@@ -79,7 +83,7 @@ export async function notifyTelegram(event: TelegramNotificationEvent, text: str
     await Promise.all(
       targets.destinations.map((chatId) =>
         fetch(`https://api.telegram.org/bot${targets.botToken}/sendMessage`, {
-          body: JSON.stringify({ chat_id: chatId, text }),
+          body: JSON.stringify({ chat_id: chatId, text, ...(parseMode ? { parse_mode: parseMode } : {}) }),
           headers: { "Content-Type": "application/json" },
           method: "POST",
         }).then((res) => logIfRejected(event, chatId, res))
@@ -104,9 +108,10 @@ export type TelegramMedia = { data: Uint8Array<ArrayBuffer>; contentType: string
 export async function notifyTelegramWithMedia(
   event: TelegramNotificationEvent,
   text: string,
-  media: TelegramMedia[]
+  media: TelegramMedia[],
+  parseMode?: "HTML"
 ): Promise<void> {
-  if (media.length === 0) return notifyTelegram(event, text);
+  if (media.length === 0) return notifyTelegram(event, text, parseMode);
   try {
     const targets = await resolveTelegramTargets(event);
     if (!targets) return;
@@ -117,8 +122,8 @@ export async function notifyTelegramWithMedia(
     await Promise.all(
       targets.destinations.map((chatId) =>
         (media.length === 1
-          ? sendPhoto(targets.botToken, chatId, media[0], caption)
-          : sendMediaGroup(targets.botToken, chatId, media, caption)
+          ? sendPhoto(targets.botToken, chatId, media[0], caption, parseMode)
+          : sendMediaGroup(targets.botToken, chatId, media, caption, parseMode)
         ).then((res) => logIfRejected(event, chatId, res))
       )
     );
@@ -129,22 +134,39 @@ export async function notifyTelegramWithMedia(
   }
 }
 
-function sendPhoto(botToken: string, chatId: string, photo: TelegramMedia, caption: string) {
+function sendPhoto(
+  botToken: string,
+  chatId: string,
+  photo: TelegramMedia,
+  caption: string,
+  parseMode?: "HTML"
+) {
   const form = new FormData();
   form.append("chat_id", chatId);
   form.append("caption", caption);
+  if (parseMode) form.append("parse_mode", parseMode);
   form.append("photo", new Blob([photo.data], { type: photo.contentType }), "attachment");
   return fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, { body: form, method: "POST" });
 }
 
-function sendMediaGroup(botToken: string, chatId: string, media: TelegramMedia[], caption: string) {
+function sendMediaGroup(
+  botToken: string,
+  chatId: string,
+  media: TelegramMedia[],
+  caption: string,
+  parseMode?: "HTML"
+) {
   const form = new FormData();
   form.append("chat_id", chatId);
   const items = media.map((m, i) => {
     const key = `file${i}`;
     form.append(key, new Blob([m.data], { type: m.contentType }), key);
     // Telegram only renders a caption from the group's first item.
-    return { media: `attach://${key}`, type: "photo", ...(i === 0 ? { caption } : {}) };
+    return {
+      media: `attach://${key}`,
+      type: "photo",
+      ...(i === 0 ? { caption, ...(parseMode ? { parse_mode: parseMode } : {}) } : {}),
+    };
   });
   form.append("media", JSON.stringify(items));
   return fetch(`https://api.telegram.org/bot${botToken}/sendMediaGroup`, { body: form, method: "POST" });

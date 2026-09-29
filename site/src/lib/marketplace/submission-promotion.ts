@@ -1,6 +1,25 @@
 import { DEPCUT_CANONICAL } from "@/cut/lib/hosts";
+import { getObject } from "@/cut/server/cloud/r2";
+import { extractYoutubeVideoId } from "@/lib/marketplace/url-import";
 import { prisma } from "@/lib/prisma";
-import { notifyTelegram } from "@/lib/telegram/notify";
+import { notifyTelegram, notifyTelegramWithMedia } from "@/lib/telegram/notify";
+
+// Telegram's HTML parse mode reads these five characters as markup — every
+// field pulled from a submission (title, script, an edit code that's really
+// a redeemer's pasted text) is untrusted and has to be escaped before it
+// rides inside a <a> tag or the raw text around one, or a submitter typing
+// "<b>" (or worse, an unclosed tag) breaks the whole message's formatting.
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// A link rendered as a clean inline label instead of a bare URL — Telegram
+// wraps a long raw URL mid-word on a phone screen (exactly the "youtube.com/
+// shorts/..." break this replaces), and hides it inside a code/edit-code
+// field otherwise unrelated to the click target.
+function htmlLink(label: string, url: string): string {
+  return `<a href="${escapeHtml(url)}">${escapeHtml(label)}</a>`;
+}
 
 // video and thumbnail are always required; verification only for Pro
 // submissions.
@@ -53,16 +72,26 @@ export async function tryPromoteSubmission(submissionId: string): Promise<void> 
   const lines = [
     "🆕 New Submission Pending Review",
     "",
-    `👤 User: ${submitterName} | ${submission.userId}`,
-    `🎬 Title: ${submission.title ?? "Untitled"}`,
+    `👤 User: ${escapeHtml(submitterName)} | ${escapeHtml(submission.userId)}`,
+    `🎬 Title: ${escapeHtml(submission.title ?? "Untitled")}`,
     `🎯 Mode: ${submission.taskId ? "Task" : "Inspire"}`,
-    `🏷️ Type: ${submission.extension}`,
+    `🏷️ Type: ${escapeHtml(submission.extension)}`,
   ];
   if (submission.inspireUrl) {
-    lines.push(`🔗 Link: click here (${submission.inspireUrl})`);
+    lines.push(`🔗 Link: ${htmlLink("click here", submission.inspireUrl)}`);
+  }
+  if (submission.editCode) {
+    // matchYoutubeLink (edit-code route) stores the canonical YouTube URL
+    // itself as editCode for a link-verified submission; a studio-issued
+    // code ("VK12345678") never parses as one.
+    lines.push(
+      extractYoutubeVideoId(submission.editCode)
+        ? `🎥 YouTube: ${htmlLink("click here", submission.editCode)}`
+        : `🔑 Edit Code: ${escapeHtml(submission.editCode)}`
+    );
   }
   if (submission.voiceScript) {
-    lines.push(`📜 Script: ${submission.voiceScript}`);
+    lines.push(`📜 Script: ${escapeHtml(submission.voiceScript)}`);
   }
   lines.push(
     "",
@@ -71,10 +100,22 @@ export async function tryPromoteSubmission(submissionId: string): Promise<void> 
     "",
     "Status: ⏳ Pending",
     "",
-    `👉 Review it: ${siteOrigin}/admin/submissions?id=${submission.id}`,
+    `👉 Review it: ${htmlLink("click here", `${siteOrigin}/admin/submissions?id=${submission.id}`)}`,
   );
 
-  await notifyTelegram("submission", lines.join("\n"));
+  const text = lines.join("\n");
+  // A project-linked submission (submission.projectId) has no uploaded
+  // thumbnail asset — the editor project itself is what's under review —
+  // so only an upload-flow submission has bytes here to attach.
+  const thumb = submission.assets.find((a) => a.type === "thumbnail" && a.status === "complete");
+  const photo = thumb?.storageKey ? await getObject(thumb.storageKey) : null;
+  if (photo) {
+    const data = new Uint8Array(new ArrayBuffer(photo.bytes.byteLength));
+    data.set(photo.bytes);
+    await notifyTelegramWithMedia("submission", text, [{ contentType: photo.mime, data }], "HTML");
+  } else {
+    await notifyTelegram("submission", text, "HTML");
+  }
 }
 
 // One asset's upload didn't make it — client-reported failure, or /complete
