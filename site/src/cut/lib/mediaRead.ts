@@ -30,11 +30,13 @@ import {
   AudioBufferSink,
   BlobSource,
   CanvasSink,
+  EncodedPacketSink,
   Input,
   UrlSource,
   type InputAudioTrack,
   type InputVideoTrack,
   type Rotation,
+  type UrlSourceOptions,
   type WrappedAudioBuffer,
   type WrappedCanvas,
 } from "mediabunny";
@@ -65,11 +67,15 @@ export class UnreadableMediaError extends Error {
   }
 }
 
-/** Open a file for reading. The caller owns it and must `dispose()` it. */
-export function openMedia(src: string | Blob): Input {
+/** Open a file for reading. The caller owns it and must `dispose()` it.
+ * `urlOptions` only applies to a URL source (a Blob has no requests to
+ * tune) — e.g. `{ parallelism: 1 }` for a reader that's one of several
+ * already hitting the same file at once, so it adds less to the concurrent
+ * request count than mediabunny's own default of 2. */
+export function openMedia(src: string | Blob, urlOptions?: UrlSourceOptions): Input {
   return new Input({
     formats: ALL_FORMATS,
-    source: typeof src === "string" ? new UrlSource(src) : new BlobSource(src),
+    source: typeof src === "string" ? new UrlSource(src, urlOptions) : new BlobSource(src),
   });
 }
 
@@ -139,6 +145,27 @@ export async function probeMediaFile(src: string | Blob): Promise<MediaProbe> {
  * consumer has to know it was ever sideways. */
 export function frameSink(track: InputVideoTrack, size?: FrameSize, poolSize?: number): CanvasSink {
   return new CanvasSink(track, { ...size, ...(poolSize ? { poolSize } : {}) });
+}
+
+/** `times`, each moved back to the nearest key packet at or before it.
+ * Decoding a key frame costs one frame; decoding an arbitrary mid-GOP
+ * timestamp costs every delta frame back to its key frame too, which is
+ * what makes a coarse sampling pass (a filmstrip, a contact sheet) far more
+ * expensive than it needs to be on a long GOP — heavy 4K H.264 especially.
+ * Stays sorted (key packets only move forward), so a caller feeding this
+ * into `canvasesAtTimestamps` keeps its single-sweep, decode-once guarantee;
+ * consecutive requested times landing on the same key packet collapse to
+ * the same output frame, same as any other gap in a filmstrip. A time
+ * before the track's first key packet passes through unchanged — nothing
+ * to snap it to. */
+export async function keyframeTimes(track: InputVideoTrack, times: number[]): Promise<number[]> {
+  const packets = new EncodedPacketSink(track);
+  const snapped: number[] = [];
+  for (const t of times) {
+    const packet = await packets.getKeyPacket(t).catch(() => null);
+    snapped.push(packet?.timestamp ?? t);
+  }
+  return snapped;
 }
 
 /**

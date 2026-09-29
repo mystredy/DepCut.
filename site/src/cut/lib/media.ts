@@ -13,8 +13,8 @@ import {
   audioTrackOf,
   decodeAudioSpan,
   frameAt,
-  framesAt,
   frameSink,
+  keyframeTimes,
   openMedia,
   probeMediaFile,
   UnreadableMediaError,
@@ -1165,43 +1165,64 @@ function writeCachedStrip(key: string, strip: CachedStrip) {
   })();
 }
 
-// Ceiling on the whole sweep, not per frame: a normal clip decodes in a few
-// seconds regardless of length (one sequential pass, not `count` seeks), so
-// this only ever fires when the decoder itself has stalled on the file. Without
-// it a stall hangs forever — enrichAsset's catch only ever sees a thrown
-// error, never a promise that just never settles — leaving a clip's strip
-// blank with nothing in the console to say why, and its decoder never
-// disposed for as long as the tab stays open.
-//
-// Exported so importQueue.ts's post-upload blob revoke can wait comfortably
-// past it — a filmstrip still mid-sweep against the pre-upload blob when that
-// URL is revoked out from under it just 404s on every read from that point on.
-export const THUMBS_TIMEOUT_MS = 20_000;
+// Ceiling on one decode sweep, scaled to roughly how much work it is: a flat
+// budget starves a heavy source and wastes time on a light one. Tuned
+// against a reported real stall — a 2160x3840, 55s .mov that needed the
+// full ceiling below while competing with two other decoders over the same
+// network connection. Never fires on a healthy sweep; a normal clip decodes
+// in a small fraction of this regardless of length (one sequential pass,
+// not `count` seeks).
+function thumbsBudgetMs(codedWidth: number, codedHeight: number, duration: number): number {
+  const megapixels = (codedWidth * codedHeight) / 1_000_000;
+  const scaled = 8_000 + megapixels * duration * 120;
+  return Math.min(THUMBS_MAX_SWEEP_MS, Math.max(8_000, Math.round(scaled)));
+}
+const THUMBS_MAX_SWEEP_MS = 45_000;
+// Flat, not scaled: the retry already samples far fewer frames (see
+// RETRY_COUNT below), so it's cheap regardless of source resolution.
+const THUMBS_RETRY_MS = 15_000;
+// The real worst case across both attempts — what importQueue.ts's post-
+// upload blob revoke waits past, so a sweep still running against the
+// pre-upload blob never gets the bytes pulled out from under it.
+export const THUMBS_TIMEOUT_MS = THUMBS_MAX_SWEEP_MS + THUMBS_RETRY_MS;
+// Coarser sampling for the one retry after a total stall — cheaper to
+// finish and, on a heavy source, more likely to.
+const RETRY_COUNT = 8;
 
-async function makeThumbs(url: string, duration: number) {
-  // One frame every ~2s (min 10, max 24) so long clips don't repeat frames.
-  const count = Math.min(24, Math.max(10, Math.round(duration / 2)));
-  const thumbStep = duration / count;
-  const times = Array.from({ length: count }, (_, i) =>
+/** One frame every ~2s (min 10, max 24) so long clips don't repeat frames,
+ * or an override count for the post-stall retry. Times are evenly spaced
+ * midpoints; the strip is read back by position
+ * (`thumbs[floor(t / thumbStep)]`), so every call with the same `count`
+ * must keep producing the same times — that's what a gap can be filled
+ * against without sliding every later tile onto the wrong moment. */
+function sampleTimes(duration: number, count?: number) {
+  const n = count ?? Math.min(24, Math.max(10, Math.round(duration / 2)));
+  const thumbStep = duration / n;
+  const times = Array.from({ length: n }, (_, i) =>
     Math.max(0, Math.min(duration - 0.05, (i + 0.5) * thumbStep))
   );
-  // Ascending times over one decode pass — the strip is a single sweep of the
-  // file rather than `count` seeks into it.
-  //
-  // The strip is read back by position (`thumbs[floor(t / thumbStep)]`), so a
-  // time the decoder has no frame for cannot simply be dropped: that would
-  // slide every later tile onto the wrong moment for the rest of the clip, and
-  // the wrong strip would be cached. A gap repeats the frame before it, which
-  // keeps every index meaning what it says.
+  return { thumbStep, times };
+}
+
+/** One decode sweep: race a canvas sink's async iterator against a budget,
+ * closing it either way so its decoder is disposed even on a stall — a
+ * timeout must not also leak the resource it was guarding against. Returns
+ * whatever landed before the sweep finished or the clock ran out. */
+async function sweepFrames(
+  sink: ReturnType<typeof frameSink>,
+  times: number[],
+  budgetMs: number,
+  url: string
+): Promise<(string | null)[]> {
   const captured: (string | null)[] = [];
-  const iterator = framesAt(url, times, { height: THUMB_H })[Symbol.asyncIterator]();
-  const deadline = Date.now() + THUMBS_TIMEOUT_MS;
+  const iterator = sink.canvasesAtTimestamps(times)[Symbol.asyncIterator]();
+  const deadline = Date.now() + budgetMs;
   try {
     for (;;) {
       const remaining = deadline - Date.now();
       if (remaining <= 0) {
         console.error(
-          `[media] filmstrip decode stalled on ${url}; giving up after ${THUMBS_TIMEOUT_MS}ms with ${captured.length}/${times.length} frames`
+          `[media] filmstrip decode stalled on ${url}; giving up after ${budgetMs}ms with ${captured.length}/${times.length} frames`
         );
         break;
       }
@@ -1211,7 +1232,7 @@ async function makeThumbs(url: string, duration: number) {
       ]);
       if (step === "timeout") {
         console.error(
-          `[media] filmstrip decode stalled on ${url}; giving up after ${THUMBS_TIMEOUT_MS}ms with ${captured.length}/${times.length} frames`
+          `[media] filmstrip decode stalled on ${url}; giving up after ${budgetMs}ms with ${captured.length}/${times.length} frames`
         );
         break;
       }
@@ -1219,22 +1240,67 @@ async function makeThumbs(url: string, duration: number) {
       captured.push(step.value ? await canvasDataUrl(step.value.canvas, "image/jpeg", 0.92) : null);
     }
   } finally {
-    // Runs the generator's own finally (framesAt disposes its decoder) even
-    // when we broke out early on a stall — a timeout must not also leak the
-    // resource it was guarding against.
     await iterator.return?.(undefined);
   }
-  // Fill gaps from the nearest frame either side, so a strip is either fully
-  // populated or empty.
-  const thumbs: string[] = [];
-  let fill: string | null = captured.find((c) => c !== null) ?? null;
-  if (fill) {
-    for (const shot of captured) {
-      if (shot) fill = shot;
-      thumbs.push(fill);
+  return captured;
+}
+
+async function makeThumbs(url: string, duration: number) {
+  // Its own reader, its own (reduced) share of concurrent requests: a
+  // filmstrip sweep is rarely the only thing reading this file — preview
+  // decoders read the same URL for the same clip at the same time — and
+  // mediabunny's own default of 2 parallel requests per reader compounds
+  // across however many are open at once. One request at a time here still
+  // finishes a sequential sweep; it just stops adding to that pile-up.
+  const input = openMedia(url, { parallelism: 1 });
+  try {
+    const track = await videoTrackOf(input);
+    if (!track) throw new UnreadableMediaError("This file has no readable video.");
+
+    const [codedWidth, codedHeight] = await Promise.all([track.getCodedWidth(), track.getCodedHeight()]);
+    const budgetMs = thumbsBudgetMs(codedWidth, codedHeight, duration);
+
+    let { thumbStep, times } = sampleTimes(duration);
+    // Snapped to key packets: decoding an arbitrary mid-GOP timestamp costs
+    // every delta frame back to its key frame too, which is what makes a
+    // coarse sampling pass far more expensive than it needs to be on a long
+    // GOP — heavy 4K H.264 especially. Stays sorted, so the sink below keeps
+    // its single-sweep, decode-each-packet-once guarantee.
+    let captured = await sweepFrames(
+      frameSink(track, { height: THUMB_H }),
+      await keyframeTimes(track, times),
+      budgetMs,
+      url
+    );
+
+    // A total stall — nothing decoded at all — is worth one retry at a
+    // coarser sampling rate before giving up for good. A partial result
+    // (some frames, just not all of them) already keeps what it got via the
+    // gap-fill below, so this is only for the empty-handed case.
+    if (captured.every((c) => c === null)) {
+      ({ thumbStep, times } = sampleTimes(duration, RETRY_COUNT));
+      captured = await sweepFrames(
+        frameSink(track, { height: THUMB_H }),
+        await keyframeTimes(track, times),
+        THUMBS_RETRY_MS,
+        url
+      );
     }
+
+    // Fill gaps from the nearest frame either side, so a strip is either fully
+    // populated or empty.
+    const thumbs: string[] = [];
+    let fill: string | null = captured.find((c) => c !== null) ?? null;
+    if (fill) {
+      for (const shot of captured) {
+        if (shot) fill = shot;
+        thumbs.push(fill);
+      }
+    }
+    return { thumbs, thumbStep };
+  } finally {
+    input.dispose();
   }
-  return { thumbs, thumbStep };
 }
 
 // Exact edge frames: a clip's first and last filmstrip tiles show the true
