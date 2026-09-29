@@ -96,6 +96,8 @@ import { lightboxItemFromRef, useLightbox } from "@/cut/lib/lightbox";
 import { refsFromDroppedFiles } from "@/cut/lib/refMedia";
 import { revealRef } from "@/cut/lib/refReveal";
 import { useEditor } from "@/cut/lib/store";
+import { renderElevenLabsClip } from "@/cut/lib/tts";
+import { elevenLabsModels } from "@/lib/inference/elevenlabs-models";
 import { cn } from "@/lib/utils";
 import { cardIconButton } from "@/cut/components/iconButton";
 import { MentionTextarea, RefChips, RefThumb, RefTokenChip } from "./AssetRefs";
@@ -1323,38 +1325,117 @@ function MessageCopy({ text }: { text: string }) {
   );
 }
 
-/** Read-aloud affordance for an assistant reply, on the browser's own
- * speech synthesis — free and instant, unlike the app's metered Gemini TTS
- * voice generation, which is for creating a real voiceover asset, not
- * narrating a chat bubble. Starting one cancels whatever the page was
- * already reading (there's only ever one global utterance), and the
- * cancelled button's own onend/onerror fires to bring it back out of its
- * "speaking" state — no shared store needed for two buttons to stay in sync. */
+// Natasha, the account's own ElevenLabs voice (not a library search result) —
+// picked for the chat read-aloud button. eleven_multilingual_v2 matches the
+// Audio panel's own default model (audioModels.ts).
+const READ_ALOUD_VOICE_ID = "iNnzC62b7pvtOFQULXdB";
+const READ_ALOUD_MODEL = elevenLabsModels.speechMultilingualV2;
+
+// A rendered clip is billed per character (metered, unlike the browser's own
+// speech synthesis this replaced), so the same bubble read twice — or read
+// again after scrolling back to it — plays the cached clip instead of paying
+// for it again. Capped so a long session's worth of read bubbles doesn't hold
+// their audio forever; the oldest clip's object URL is revoked on eviction.
+const READ_ALOUD_CACHE_CAP = 30;
+const readAloudCache = new Map<string, string>();
+function cachedClipUrl(text: string): string | undefined {
+  return readAloudCache.get(text);
+}
+function cacheClipUrl(text: string, url: string) {
+  readAloudCache.set(text, url);
+  if (readAloudCache.size <= READ_ALOUD_CACHE_CAP) return;
+  const oldest = readAloudCache.keys().next().value;
+  if (oldest === undefined) return;
+  const evicted = readAloudCache.get(oldest);
+  readAloudCache.delete(oldest);
+  if (evicted) URL.revokeObjectURL(evicted);
+}
+
+// Only one clip plays across every message bubble at a time. Starting one
+// stops whatever else was reading — the previous button's own stop() runs,
+// which brings it back out of its "speaking" state — so no shared store is
+// needed for every button to stay in sync, same as the single global
+// utterance this replaced.
+let activeReadAloudStop: (() => void) | null = null;
+
+/** Read-aloud affordance for an assistant reply, spoken through ElevenLabs
+ * rather than the browser's own speech synthesis — that was free and instant
+ * but unreliable (unsupported or silent in some mobile browser/PWA
+ * contexts), which is what this replaces it for. */
 function MessageReadAloud({ text }: { text: string }) {
-  const [speaking, setSpeaking] = useState(false);
-  useEffect(() => () => window.speechSynthesis?.cancel(), []);
-  if (!text || typeof window === "undefined" || !("speechSynthesis" in window)) return null;
-  const toggle = () => {
-    window.speechSynthesis.cancel();
-    if (speaking) {
-      setSpeaking(false);
-      return;
-    }
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.onend = () => setSpeaking(false);
-    utterance.onerror = () => setSpeaking(false);
-    window.speechSynthesis.speak(utterance);
-    setSpeaking(true);
+  const [state, setState] = useState<"idle" | "loading" | "speaking">("idle");
+  const [error, setError] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const stop = () => {
+    audioRef.current?.pause();
+    audioRef.current = null;
+    activeReadAloudStop = null;
+    setState("idle");
   };
+  // Unmount mid-read: just silence the element, no state to settle.
+  useEffect(() => () => void audioRef.current?.pause(), []);
+
+  if (!text) return null;
+
+  const toggle = async () => {
+    if (state === "loading") return;
+    if (state === "speaking") return stop();
+    activeReadAloudStop?.();
+    setError(null);
+
+    let url = cachedClipUrl(text);
+    if (!url) {
+      setState("loading");
+      try {
+        const { blob } = await renderElevenLabsClip(text, {
+          model: READ_ALOUD_MODEL,
+          voiceId: READ_ALOUD_VOICE_ID,
+        });
+        url = URL.createObjectURL(blob);
+        cacheClipUrl(text, url);
+      } catch (e) {
+        setState("idle");
+        setError(e instanceof Error ? e.message : "Could not read this aloud.");
+        return;
+      }
+    }
+
+    const audio = new Audio(url);
+    audioRef.current = audio;
+    audio.onended = stop;
+    audio.onerror = stop;
+    activeReadAloudStop = stop;
+    setState("speaking");
+    try {
+      await audio.play();
+    } catch {
+      stop();
+    }
+  };
+
   return (
     <button
       type="button"
-      aria-label={speaking ? "Stop reading" : "Read aloud"}
-      title={speaking ? "Stop reading" : "Read aloud"}
-      className={cn("ai-msg-read-aloud", cardIconButton, speaking && "text-primary")}
-      onClick={toggle}
+      aria-label={state === "speaking" ? "Stop reading" : "Read aloud"}
+      title={error ?? (state === "speaking" ? "Stop reading" : "Read aloud")}
+      className={cn(
+        "ai-msg-read-aloud",
+        cardIconButton,
+        state === "speaking" && "text-primary",
+        error && "text-red-600"
+      )}
+      onClick={() => void toggle()}
     >
-      {speaking ? <Square className="size-3 fill-current" /> : <Volume2 className="size-3.5" />}
+      {state === "loading" ? (
+        <CircleDashed className="size-3 animate-spin" />
+      ) : state === "speaking" ? (
+        <Square className="size-3 fill-current" />
+      ) : error ? (
+        <TriangleAlert className="size-3.5" />
+      ) : (
+        <Volume2 className="size-3.5" />
+      )}
     </button>
   );
 }
