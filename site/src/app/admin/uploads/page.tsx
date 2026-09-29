@@ -199,14 +199,14 @@ function CopyField({ label, value }: { label: string; value: string }) {
 function PackageDetailsDialog({ submission, onClose }: { submission: AdminSubmission; onClose: () => void }) {
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-1.5">
             <Sparkles className="size-4 text-primary" />
             Package details
           </DialogTitle>
         </DialogHeader>
-        <div className="space-y-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {submission.packageTitle && <CopyField label="Title" value={submission.packageTitle} />}
           {submission.packageDescription && (
             <CopyField label="Description" value={submission.packageDescription} />
