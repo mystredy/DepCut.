@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ExternalLink, Eye, FileVideo, Film, Plus, Send, Sparkles } from "lucide-react";
+import { Check, Copy, ExternalLink, Eye, FileText, FileVideo, Film, Plus, Send, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -87,6 +87,10 @@ export default function AdminUploadsPage() {
 function SubmissionRow({ item }: { item: AdminSubmission }) {
   const [tagOpen, setTagOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
+  const [packageOpen, setPackageOpen] = useState(false);
+  // Standard submissions never fill the package fields; Pro's is
+  // AI-generated or edit-code-matched and can still land empty.
+  const hasPackage = !!(item.packageTitle || item.packageDescription || item.packageTags);
 
   return (
     <div className="flex items-center justify-between gap-4 rounded-2xl border bg-card p-4">
@@ -131,21 +135,91 @@ function SubmissionRow({ item }: { item: AdminSubmission }) {
           </p>
         </div>
       </div>
-      {item.publishingid ? (
-        <Button size="sm" variant="outline" className="shrink-0" onClick={() => setViewOpen(true)}>
-          <Eye className="size-3.5" data-icon="inline-start" /> View Drop
-        </Button>
-      ) : (
-        <Button size="sm" className="shrink-0" onClick={() => setTagOpen(true)}>
-          <Plus className="size-3.5" data-icon="inline-start" /> Tag Drop
-        </Button>
-      )}
+      <div className="flex shrink-0 items-center gap-2">
+        {hasPackage && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="px-2.5"
+            title="View package details"
+            onClick={() => setPackageOpen(true)}
+          >
+            <FileText className="size-3.5" />
+          </Button>
+        )}
+        {item.publishingid ? (
+          <Button size="sm" variant="outline" onClick={() => setViewOpen(true)}>
+            <Eye className="size-3.5" data-icon="inline-start" /> View Drop
+          </Button>
+        ) : (
+          <Button size="sm" onClick={() => setTagOpen(true)}>
+            <Plus className="size-3.5" data-icon="inline-start" /> Tag Drop
+          </Button>
+        )}
+      </div>
 
       {tagOpen && <TagDropFlow submission={item} onClose={() => setTagOpen(false)} />}
       {viewOpen && item.publishingid && (
         <ViewDropDialog dropId={item.publishingid} onClose={() => setViewOpen(false)} />
       )}
+      {packageOpen && <PackageDetailsDialog submission={item} onClose={() => setPackageOpen(false)} />}
     </div>
+  );
+}
+
+/** Copy-to-clipboard for one package field. */
+function CopyField({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    void navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-semibold text-muted-foreground">{label}</span>
+        <button
+          type="button"
+          onClick={copy}
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          title="Copy"
+        >
+          {copied ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
+        </button>
+      </div>
+      <p className="whitespace-pre-wrap rounded-lg border bg-muted/40 p-2.5 text-sm">{value}</p>
+    </div>
+  );
+}
+
+/** The Pro viral package's title/description/tags, each copyable on its
+ * own — the fields DropDialog prefills a new drop from, for a manager who
+ * already posted the edit somewhere else and just needs the copy for it. */
+function PackageDetailsDialog({ submission, onClose }: { submission: AdminSubmission; onClose: () => void }) {
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-1.5">
+            <Sparkles className="size-4 text-primary" />
+            Package details
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          {submission.packageTitle && <CopyField label="Title" value={submission.packageTitle} />}
+          {submission.packageDescription && (
+            <CopyField label="Description" value={submission.packageDescription} />
+          )}
+          {submission.packageTags && <CopyField label="Tags" value={submission.packageTags} />}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
