@@ -1,20 +1,38 @@
+import { chmod, stat } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 
-// Vercel functions have no ffmpeg/ffprobe on PATH at all — the render pipeline
-// (exportPipeline.ts, hlsLadder.ts, ...) spawns both as bare commands,
-// resolved through PATH the same way the Mac engine's own tool-path.ts widens
-// it for local dev. ffmpeg-static/ffprobe-static ship real prebuilt static
-// Linux binaries already named "ffmpeg"/"ffprobe", so prepending their
-// directories is the whole fix — no copying, no chmod, no network fetch.
-let widened = false;
+import { downloadToFile } from "@/cut/worker/r2";
 
-export function ensureRenderToolPath(): void {
-  if (widened) return;
-  widened = true;
-  // eslint-disable-next-line @typescript-eslint/no-require-imports -- these two ship no ESM entry point
-  const ffmpegPath = require("ffmpeg-static") as string;
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const ffprobePath = (require("ffprobe-static") as { path: string }).path;
-  const dirs = [path.dirname(ffmpegPath), path.dirname(ffprobePath)];
-  process.env.PATH = [...dirs, process.env.PATH].filter(Boolean).join(path.delimiter);
+// Vercel functions have no ffmpeg/ffprobe on PATH at all, and — unlike a
+// normal webpack build — this project's Turbopack build doesn't trace the
+// ffmpeg-static/ffprobe-static npm packages' binary files into the deployed
+// function even though `require()` still resolves their path string (see
+// next.config.ts's own comment: outputFileTracingExcludes is already a
+// documented no-op under Turbopack here, and outputFileTracingIncludes
+// turned out to be no better for these two). So this fetches the exact same
+// binaries — already uploaded once to R2 from a local ffmpeg-static/
+// ffprobe-static install — into /tmp at runtime instead of trusting the
+// bundle to carry them, and caches that fetch for the lifetime of the warm
+// function instance.
+const TOOLS_DIR = path.join(os.tmpdir(), "depcut-render-tools");
+const TOOLS = [
+  { key: "tools/ffmpeg-static/ffmpeg", name: "ffmpeg" },
+  { key: "tools/ffmpeg-static/ffprobe", name: "ffprobe" },
+];
+
+let ensured: Promise<void> | null = null;
+
+async function fetchTool(key: string, dest: string): Promise<void> {
+  const already = await stat(dest).catch(() => null);
+  if (already && already.size > 0) return;
+  await downloadToFile(key, dest);
+  await chmod(dest, 0o755);
+}
+
+export function ensureRenderToolPath(): Promise<void> {
+  return (ensured ??= (async () => {
+    await Promise.all(TOOLS.map((t) => fetchTool(t.key, path.join(TOOLS_DIR, t.name))));
+    process.env.PATH = [TOOLS_DIR, process.env.PATH].filter(Boolean).join(path.delimiter);
+  })());
 }

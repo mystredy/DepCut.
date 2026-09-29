@@ -124,7 +124,7 @@ async function alertIfStuck(): Promise<void> {
 // other cron route in this codebase (see isVercelCron).
 export const GET = async (request: Request) => {
   if (!isVercelCron(request)) return notFoundResponse();
-  ensureRenderToolPath();
+  await ensureRenderToolPath();
 
   await sweepStaleRunning();
   const job = await claimNext();
