@@ -165,6 +165,17 @@ export async function localMediaUrl(projectId: string, fileName: string): Promis
   return file ? registerBlobFile(path, file) : null;
 }
 
+/** The local blob URL for this file if one is already minted — a synchronous
+ * check against the registry, with no OPFS read. Used to prefer bytes already
+ * sitting in the browser over a network URL without waiting on one: a warm
+ * reopen has this immediately, a cold one doesn't yet (the prefetch mints it
+ * once the download lands, and whoever swaps the asset onto it is the one
+ * that finds it here next time). */
+export function resolvedLocalUrl(projectId: string | null, fileName: string): string | null {
+  if (!projectId) return null;
+  return registeredUrl(mediaPath(projectId, fileName));
+}
+
 /** A media delete's local half: the file, its blob URL, and its pin. */
 export async function dropLocalMedia(projectId: string, fileName: string): Promise<void> {
   if (!supportsBrowserStore()) return;

@@ -181,6 +181,34 @@ export function Editor({
     };
   }, [projectId, viewer]);
 
+  // A cloud project's assets enrich the moment the document loads, off
+  // whatever URL they carry then — a signed remote link, since the local
+  // prefetch (mediaSync.ts) is still downloading in the background. When that
+  // download lands and swaps an asset onto its local bytes (store.ts's
+  // loadProject), an asset that never got thumbs/peaks — the remote sweep
+  // stalled, or hadn't reached it yet — is worth enriching again from disk
+  // instead of staying blank for a file that's now sitting right there.
+  // enrichAsset's own generation guard makes this safe to fire alongside a
+  // still-running earlier attempt: only the result of whichever call started
+  // last is kept.
+  useEffect(() => {
+    if (viewer) return;
+    const urls = new Map<string, string>();
+    const unsub = useEditor.subscribe((s) => {
+      if (!s.loaded || s.projectId !== projectId) return;
+      for (const asset of s.assets) {
+        const prior = urls.get(asset.id);
+        urls.set(asset.id, asset.url);
+        if (prior === undefined || prior === asset.url) continue;
+        if (asset.upload) continue; // still uploading: its own path enriches it
+        const enriched = asset.type === "audio" ? !!asset.peaks?.length : !!asset.thumbs?.length;
+        if (enriched) continue;
+        void enrichAsset(asset);
+      }
+    });
+    return unsub;
+  }, [projectId, viewer]);
+
   // A doc that carries `firstOpen` presents itself on its first open in this
   // browser: the editor reads the block and follows it — which side-panel tab
   // shows (null folds the panel to its rail), whether chat opens on the

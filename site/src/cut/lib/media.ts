@@ -6,7 +6,7 @@ import { apiFetch, apiJson, getBackend, type CutBackend } from "./backend";
 import { quotaErrorMessage } from "./backend/cloud";
 import { encodeWav } from "./cloudTranscribe";
 import { startUpload } from "./importQueue";
-import { stashCloudMedia } from "./mediaSync";
+import { resolvedLocalUrl, stashCloudMedia } from "./mediaSync";
 import {
   audioChunks,
   audioPeaks,
@@ -1050,11 +1050,35 @@ export async function makeContactSheetsClientSide(
   }
 }
 
+// Enrichment can be asked for twice on the same asset in flight: once at
+// project open, reading whatever URL the asset carries then (a cloud
+// reopen's is a signed remote link, since the local prefetch hasn't landed
+// yet), and again once the prefetch swaps the asset onto local bytes. Both
+// read the file start-to-finish, so letting the first keep running wastes a
+// full decode sweep racing the local download for bandwidth — the exact
+// contention that stalls the live decoders too — and letting it write last
+// would overwrite the good local-sourced result with whatever the slow,
+// possibly-stalled remote sweep came back with. This generation counter
+// makes only the most recently *started* call's result land, and only that
+// one worth writing; the record here is who most recently began.
+const enrichGen = new Map<string, number>();
+let enrichSeq = 0;
+
 /** Generate filmstrip thumbnails / waveform peaks and merge them into the
- * store. Safe to call repeatedly; skips assets that are already enriched.
+ * store. Safe to call repeatedly; skips assets that are already enriched. A
+ * newer call for the same asset always wins over an older one still running.
  * `src` overrides where the frames are read from — an import still uploading
- * has the bytes in the browser already, so it need not wait or re-download. */
-export async function enrichAsset(asset: MediaAsset, src = asset.url) {
+ * has the bytes in the browser already, so it need not wait or re-download;
+ * failing that, a project's local blob for this file is preferred over
+ * `asset.url` when one is already sitting in the browser, so a warm reopen
+ * reads bytes on disk instead of streaming them over again. */
+export async function enrichAsset(
+  asset: MediaAsset,
+  src = resolvedLocalUrl(useEditor.getState().projectId, asset.fileName) ?? asset.url
+) {
+  const gen = ++enrichSeq;
+  enrichGen.set(asset.id, gen);
+  const stale = () => enrichGen.get(asset.id) !== gen;
   try {
     if (asset.type === "image") {
       // A still is its own filmstrip: one frame, tiled across the clip.
@@ -1064,10 +1088,12 @@ export async function enrichAsset(asset: MediaAsset, src = asset.url) {
     } else if (asset.type === "video" && !asset.thumbs?.length) {
       const key = stripCacheKey(useEditor.getState().projectId, asset.fileName);
       const cached = await readCachedStrip(key, asset.duration);
+      if (stale()) return;
       if (cached) {
         useEditor.getState().updateAsset(asset.id, { thumbs: cached.thumbs, thumbStep: cached.thumbStep });
       } else {
         const { thumbs, thumbStep } = await makeThumbs(src, asset.duration);
+        if (stale()) return;
         useEditor.getState().updateAsset(asset.id, { thumbs, thumbStep });
         // A fully failed sweep has nothing worth remembering — readCachedStrip
         // already treats an empty-thumbs entry as a miss, so this wouldn't
@@ -1078,6 +1104,7 @@ export async function enrichAsset(asset: MediaAsset, src = asset.url) {
       }
     } else if (asset.type === "audio" && !asset.peaks?.length) {
       const peaks = await makePeaks(src);
+      if (stale()) return;
       useEditor.getState().updateAsset(asset.id, { peaks });
     }
   } catch {
