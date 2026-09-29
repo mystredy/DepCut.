@@ -30,6 +30,16 @@ export const maxDuration = 300;
 const FALLBACK_KINDS = ["preview", "card", "hls"] as const;
 const ALL_KINDS = ["preview", "card", "hls", "import_url", "export"] as const;
 
+// A cron tick that claims and runs a single job drains a backlog at one job
+// per tick — with a preview/card/hls queue in the dozens (this route only
+// started running recently; nothing had ever claimed a row before it), that
+// is hours behind and never catches up, since new jobs queue faster than one
+// every couple of minutes clears them. So one invocation works through as
+// many as fit in the time budget instead of stopping after the first.
+// Comfortably inside maxDuration, leaving room for a render already in
+// flight to finish its own pass rather than being cut off mid-write.
+const RUN_BUDGET_MS = 260_000;
+
 // Comfortably longer than maxDuration: a row still "running" past this was
 // abandoned by a function Vercel killed mid-render, not a job actually in
 // flight — same reasoning as the worker's own STALE_RUNNING_MS.
@@ -85,6 +95,20 @@ async function runOne(job: ClaimedJob): Promise<void> {
   }
 }
 
+/** Claim and run jobs back to back until the queue is empty or the time
+ * budget runs out, so a deep backlog drains over one invocation's worth of
+ * ticks instead of one job per tick. */
+async function drainQueue(deadline: number): Promise<{ id: string; kind: string }[]> {
+  const ran: { id: string; kind: string }[] = [];
+  while (Date.now() < deadline) {
+    const job = await claimNext();
+    if (!job) break;
+    await runOne(job);
+    ran.push({ id: job.id, kind: job.kind });
+  }
+  return ran;
+}
+
 /** Alert the admin once per stuck batch — every kind, not just the ones this
  * route claims, so import_url/export backlogs are visible even though
  * nothing here processes them. */
@@ -127,9 +151,8 @@ export const GET = async (request: Request) => {
   await ensureRenderToolPath();
 
   await sweepStaleRunning();
-  const job = await claimNext();
-  if (job) await runOne(job);
+  const ran = await drainQueue(Date.now() + RUN_BUDGET_MS);
   await alertIfStuck();
 
-  return NextResponse.json({ ran: job ? { id: job.id, kind: job.kind } : null });
+  return NextResponse.json({ ran });
 };
