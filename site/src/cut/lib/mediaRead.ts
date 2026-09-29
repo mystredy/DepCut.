@@ -40,6 +40,7 @@ import {
   type WrappedAudioBuffer,
   type WrappedCanvas,
 } from "mediabunny";
+import { resolveRegisteredBlob } from "./backend/browser/registry";
 
 /** What a file turns out to be, read from its container. */
 export interface MediaProbe {
@@ -67,15 +68,18 @@ export class UnreadableMediaError extends Error {
   }
 }
 
-/** Open a file for reading. The caller owns it and must `dispose()` it.
- * `urlOptions` only applies to a URL source (a Blob has no requests to
- * tune) — e.g. `{ parallelism: 1 }` for a reader that's one of several
- * already hitting the same file at once, so it adds less to the concurrent
- * request count than mediabunny's own default of 2. */
+/** Open a file for reading. The caller owns it and must `dispose()` it. A URL
+ * the browser store minted resolves to its backing File and reads as a blob —
+ * ranged fetches of blob URLs are unreliable across browsers. `urlOptions`
+ * only applies to a real URL source (a Blob has no requests to tune) — e.g.
+ * `{ parallelism: 1 }` for a reader that's one of several already hitting the
+ * same file at once, so it adds less to the concurrent request count than
+ * mediabunny's own default of 2. */
 export function openMedia(src: string | Blob, urlOptions?: UrlSourceOptions): Input {
+  const blob = typeof src === "string" ? (resolveRegisteredBlob(src) ?? src) : src;
   return new Input({
     formats: ALL_FORMATS,
-    source: typeof src === "string" ? new UrlSource(src, urlOptions) : new BlobSource(src),
+    source: typeof blob === "string" ? new UrlSource(blob, urlOptions) : new BlobSource(blob),
   });
 }
 

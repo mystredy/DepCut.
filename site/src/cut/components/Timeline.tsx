@@ -44,6 +44,7 @@ import { CLIP_GAP, startLaneMove, startLaneTrim, type LaneDrag } from "@/cut/lib
 import { ensurePeaks, importImage, importStockMusic, importStockVideo, peekEdgeFrame, requestEdgeFrame, revealMedia } from "@/cut/lib/media";
 import { requestSidePanel } from "@/cut/lib/panelRequest";
 import { track0Clips, laneGapAt, sameLane, type LaneRef, clipLen, clipSpeed, footprints, getClipSpans, nextFreeStart, overlayLaneOrder, overlayLayers, projectDuration, resolveTransitions, rippleInsert, TIMELINE_H_MAX, useEditor } from "@/cut/lib/store";
+import { resolvedLocalUrl } from "@/cut/lib/mediaSync";
 import type { VideoTrackPlacement } from "@/cut/lib/store";
 import { laneHidden, subtitleLaneCount } from "@/cut/lib/subtitles";
 import { formatTimecode } from "@/cut/lib/time";
@@ -3320,7 +3321,9 @@ function filmstripFrames(
  * thumb shows instead) until the capture lands; a changed edge time falls back
  * immediately so a trim drag never shows a stale exact frame. */
 function useEdgeFrame(asset: MediaAsset | undefined, time: number, slot: string) {
-  const url = asset?.type === "video" ? asset.url : null;
+  const projectId = useEditor((s) => s.projectId);
+  const url =
+    asset?.type === "video" ? (resolvedLocalUrl(projectId, asset.fileName) ?? asset.url) : null;
   const id = url ? `${url}#${time.toFixed(2)}` : "";
   const cached = url ? peekEdgeFrame(url, time) : null;
   const [frame, setFrame] = useState<{ id: string; src: string } | null>(null);

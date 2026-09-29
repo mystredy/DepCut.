@@ -7,6 +7,7 @@ import { clearElementDrag, setElementDragData } from "@/cut/lib/assetDrag";
 import { peekEdgeFrame, requestEdgeFrame } from "@/cut/lib/media";
 import { PICKED_RING, pickGridNav, useAssetPick } from "@/cut/lib/assetPick";
 import { getClipSpans, resolveTransitions, transitionBoundaries, useEditor } from "@/cut/lib/store";
+import { resolvedLocalUrl } from "@/cut/lib/mediaSync";
 import {
   TRANSITION_DEFAULT_SECONDS,
   TRANSITION_MAX,
@@ -165,7 +166,9 @@ function useCutFrame(
   slot: string,
   side: { asset: MediaAsset; srcT: number } | null
 ): string | null {
-  const url = side?.asset.type === "video" ? side.asset.url : null;
+  const projectId = useEditor((s) => s.projectId);
+  const url =
+    side?.asset.type === "video" ? (resolvedLocalUrl(projectId, side.asset.fileName) ?? side.asset.url) : null;
   const time = side?.srcT ?? 0;
   const id = url ? `${url}#${time.toFixed(2)}` : "";
   const cached = url ? peekEdgeFrame(url, time, TILE_FRAME_H) : null;
