@@ -1165,6 +1165,15 @@ function writeCachedStrip(key: string, strip: CachedStrip) {
   })();
 }
 
+// Ceiling on the whole sweep, not per frame: a normal clip decodes in a few
+// seconds regardless of length (one sequential pass, not `count` seeks), so
+// this only ever fires when the decoder itself has stalled on the file. Without
+// it a stall hangs forever — enrichAsset's catch only ever sees a thrown
+// error, never a promise that just never settles — leaving a clip's strip
+// blank with nothing in the console to say why, and its decoder never
+// disposed for as long as the tab stays open.
+const THUMBS_TIMEOUT_MS = 20_000;
+
 async function makeThumbs(url: string, duration: number) {
   // One frame every ~2s (min 10, max 24) so long clips don't repeat frames.
   const count = Math.min(24, Math.max(10, Math.round(duration / 2)));
@@ -1181,8 +1190,35 @@ async function makeThumbs(url: string, duration: number) {
   // the wrong strip would be cached. A gap repeats the frame before it, which
   // keeps every index meaning what it says.
   const captured: (string | null)[] = [];
-  for await (const frame of framesAt(url, times, { height: THUMB_H })) {
-    captured.push(frame ? await canvasDataUrl(frame.canvas, "image/jpeg", 0.92) : null);
+  const iterator = framesAt(url, times, { height: THUMB_H })[Symbol.asyncIterator]();
+  const deadline = Date.now() + THUMBS_TIMEOUT_MS;
+  try {
+    for (;;) {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
+        console.error(
+          `[media] filmstrip decode stalled on ${url}; giving up after ${THUMBS_TIMEOUT_MS}ms with ${captured.length}/${times.length} frames`
+        );
+        break;
+      }
+      const step = await Promise.race([
+        iterator.next(),
+        new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), remaining)),
+      ]);
+      if (step === "timeout") {
+        console.error(
+          `[media] filmstrip decode stalled on ${url}; giving up after ${THUMBS_TIMEOUT_MS}ms with ${captured.length}/${times.length} frames`
+        );
+        break;
+      }
+      if (step.done) break;
+      captured.push(step.value ? await canvasDataUrl(step.value.canvas, "image/jpeg", 0.92) : null);
+    }
+  } finally {
+    // Runs the generator's own finally (framesAt disposes its decoder) even
+    // when we broke out early on a stall — a timeout must not also leak the
+    // resource it was guarding against.
+    await iterator.return?.(undefined);
   }
   // Fill gaps from the nearest frame either side, so a strip is either fully
   // populated or empty.
