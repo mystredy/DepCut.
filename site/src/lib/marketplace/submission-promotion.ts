@@ -82,11 +82,15 @@ export async function tryPromoteSubmission(submissionId: string): Promise<void> 
   }
   if (submission.editCode) {
     // matchYoutubeLink (edit-code route) stores the canonical YouTube URL
-    // itself as editCode for a link-verified submission; a studio-issued
-    // code ("VK12345678") never parses as one.
+    // itself as editCode for a link-verified submission — a different video
+    // than inspireUrl above (that one's the brief; this is the artist's own
+    // published upload that verified the studio match), so the label has to
+    // actually distinguish them rather than both reading as "click here". A
+    // studio-issued code ("VK12345678") never parses as a video id.
+    const videoId = extractYoutubeVideoId(submission.editCode);
     lines.push(
-      extractYoutubeVideoId(submission.editCode)
-        ? `🎥 YouTube: ${htmlLink("click here", submission.editCode)}`
+      videoId
+        ? `🎥 YouTube: ${htmlLink(videoId, submission.editCode)}`
         : `🔑 Edit Code: ${escapeHtml(submission.editCode)}`
     );
   }
