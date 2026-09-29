@@ -395,7 +395,13 @@ export async function prepareImport(
       const s = useEditor.getState();
       if (!s.assets.some((a) => a.id === asset.id)) return;
       s.updateAsset(asset.id, { url: stashedUrl });
-      URL.revokeObjectURL(localUrl);
+      // Same race importQueue.ts's own post-upload revoke guards against —
+      // filmstrip generation reads from localUrl too (Editor.tsx passes it
+      // straight into enrichAsset) and can still be mid-sweep here. This
+      // stash write is browser-local, so it can resolve well before that
+      // sweep does on a small, fast file — revoking on the spot pulled the
+      // blob out from under a decode that hadn't finished yet.
+      setTimeout(() => URL.revokeObjectURL(localUrl), THUMBS_TIMEOUT_MS + 10_000);
     });
     const send = async (opts?: {
       onProgress?: (fraction: number) => void;
@@ -1063,7 +1069,12 @@ export async function enrichAsset(asset: MediaAsset, src = asset.url) {
       } else {
         const { thumbs, thumbStep } = await makeThumbs(src, asset.duration);
         useEditor.getState().updateAsset(asset.id, { thumbs, thumbStep });
-        writeCachedStrip(key, { thumbs, thumbStep, duration: asset.duration, at: Date.now() });
+        // A fully failed sweep has nothing worth remembering — readCachedStrip
+        // already treats an empty-thumbs entry as a miss, so this wouldn't
+        // block a later retry either way, but there's no reason to spend a
+        // write (and a STRIP_CAP slot) on a strip that's just going to be
+        // regenerated next time this asset enriches.
+        if (thumbs.length > 0) writeCachedStrip(key, { thumbs, thumbStep, duration: asset.duration, at: Date.now() });
       }
     } else if (asset.type === "audio" && !asset.peaks?.length) {
       const peaks = await makePeaks(src);
