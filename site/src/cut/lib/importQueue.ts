@@ -16,7 +16,7 @@
 // - A failed upload leaves the asset in place with an error, so the user can
 //   retry it rather than discover later that it was never saved.
 import { getBackend, type CutBackend } from "./backend";
-import type { PendingImport } from "./media";
+import { THUMBS_TIMEOUT_MS, type PendingImport } from "./media";
 import { clearPendingUpload, dropLocalMedia, localMediaUrl } from "./mediaSync";
 import { useEditor } from "./store";
 import { mediaUrl } from "./types";
@@ -154,12 +154,17 @@ async function run(job: Job) {
       upload: undefined,
       ...(asset.type === "image" ? { thumbs: [url] } : {}),
     });
-    // Decoders repoint on the URL change; let the frame they are painting
-    // finish before the bytes behind them go away. Skipped when the stash
-    // landed: `prepareImport`'s own background handler already revoked
-    // `localUrl` once it swapped the asset onto the durable copy — the same
-    // one `local` just found.
-    if (!local) setTimeout(() => URL.revokeObjectURL(localUrl), 10_000);
+    // Decoders repoint on the URL change; let whatever's still reading from
+    // localUrl finish before the bytes behind it go away — a fresh import's
+    // filmstrip generation is still mid-sweep here more often than not (it's
+    // one sequential decode pass over the whole clip, not a single frame),
+    // and 10s used to cut that off mid-read: every remaining sample 404s on a
+    // now-revoked blob URL with nothing to say why. Comfortably past
+    // makeThumbs' own worst-case bound instead of an unrelated guess.
+    // Skipped when the stash landed: `prepareImport`'s own background
+    // handler already revoked `localUrl` once it swapped the asset onto the
+    // durable copy — the same one `local` just found.
+    if (!local) setTimeout(() => URL.revokeObjectURL(localUrl), THUMBS_TIMEOUT_MS + 10_000);
   } catch (err) {
     if (job.controller.signal.aborted) return;
     if (!wanted(job)) return cancelUpload(asset.id);

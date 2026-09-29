@@ -1172,7 +1172,11 @@ function writeCachedStrip(key: string, strip: CachedStrip) {
 // error, never a promise that just never settles — leaving a clip's strip
 // blank with nothing in the console to say why, and its decoder never
 // disposed for as long as the tab stays open.
-const THUMBS_TIMEOUT_MS = 20_000;
+//
+// Exported so importQueue.ts's post-upload blob revoke can wait comfortably
+// past it — a filmstrip still mid-sweep against the pre-upload blob when that
+// URL is revoked out from under it just 404s on every read from that point on.
+export const THUMBS_TIMEOUT_MS = 20_000;
 
 async function makeThumbs(url: string, duration: number) {
   // One frame every ~2s (min 10, max 24) so long clips don't repeat frames.
