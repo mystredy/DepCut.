@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { GoogleAnalytics } from "@next/third-parties/google";
 import { Suspense } from "react";
 import "./globals.css";
 
@@ -77,6 +78,11 @@ export default async function RootLayout({
             <ErrorReporter />
           </QueryProvider>
         </PostHogProvider>
+        {/* Leave NEXT_PUBLIC_GA_ID unset (e.g. local dev) to disable — same
+            opt-in-by-env pattern as PostHog above. */}
+        {process.env.NEXT_PUBLIC_GA_ID && (
+          <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GA_ID} />
+        )}
       </body>
     </html>
   );
