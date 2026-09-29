@@ -320,12 +320,55 @@ function SubtitleCaption({
   const currentTime = useEditor((s) => s.currentTime);
   const skimTime = useEditor((s) => s.skimTime);
   const playing = useEditor((s) => s.playing);
+  const selection = useEditor((s) => s.selection);
   const frame = frameOf(useEditor((s) => s.aspect));
   const t = !playing && skimTime !== null ? skimTime : currentTime;
 
+  const [editing, setEditing] = useState(false);
+  const editRef = useRef<HTMLDivElement>(null);
+
   const cues = laneCues(subtitles, lane);
+  // Not hoisted above the hooks below: every hook here must run on every
+  // render regardless of whether a cue is live, so a cue disappearing
+  // mid-edit (the playhead moving past it) can't change the hook count.
   const cue = cueAt(cues, t);
+
+  useEffect(() => {
+    if (editing && editRef.current) {
+      editRef.current.focus();
+      const range = document.createRange();
+      range.selectNodeContents(editRef.current);
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(range);
+    }
+  }, [editing]);
+
+  // Edits the cue's raw text, not `ov.text` below — that's wrapped for
+  // display (inserted line breaks, karaoke word spans) and isn't what should
+  // round-trip through setCueText. If the cue itself vanished mid-edit (the
+  // playhead moved past it while typing), there's nothing left to commit to.
+  const commitText = () => {
+    const text = editRef.current?.innerText ?? "";
+    setEditing(false);
+    if (cue && text.trim() !== cue.text) useEditor.getState().setCueText(cue.id, text);
+  };
+
+  // Same as a title's own editable box: a click outside it commits and
+  // dismisses, so text never stays "stuck" in edit mode.
+  useEffect(() => {
+    if (!editing) return;
+    const onDown = (e: PointerEvent) => {
+      if (!editRef.current?.contains(e.target as Node)) commitText();
+    };
+    document.addEventListener("pointerdown", onDown, true);
+    return () => document.removeEventListener("pointerdown", onDown, true);
+    // commitText closes over the current cue; re-bind when editing toggles.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing]);
+
   if (!cue || !cue.text.trim()) return null;
+  const selected = selection?.kind === "cue" && selection.id === cue.id;
 
   // Captions ride the same style/opener/anchor logic as the export burn-in,
   // so the preview and the rendered file match exactly.
@@ -367,9 +410,16 @@ function SubtitleCaption({
   return (
     <div
       ref={(el) => registerBox(subtitleBoxId(lane), el)}
-      className="sub-caption pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 touch-none cursor-grab text-center whitespace-pre-wrap active:cursor-grabbing"
+      className={cn(
+        "sub-caption pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 cursor-grab text-center whitespace-pre-wrap active:cursor-grabbing",
+        selected && "outline-[1.5px] outline-offset-[3px] outline-[#0a84ff]",
+        !editing && "touch-none",
+        editing && "cursor-text"
+      )}
       onPointerDown={(e) => {
+        if (editing) return;
         const s = useEditor.getState();
+        s.select({ kind: "cue", id: cue.id });
         s.pushHistory();
         const { x: x0, y: y0 } = ov;
         startDrag(e, {
@@ -383,6 +433,7 @@ function SubtitleCaption({
           onUp: onSnapEnd,
         });
       }}
+      onDoubleClick={() => setEditing(true)}
       style={{
         left: `${ov.x * 100}%`,
         top: `${ov.y * 100}%`,
@@ -402,25 +453,44 @@ function SubtitleCaption({
         borderRadius: ov.plate ? PLATE_RADIUS_EM : undefined,
       }}
     >
-      {wordIndex < 0
-        ? ov.text
-        : (() => {
-            let k = 0;
-            return ov.text.split("\n").map((line, li) => (
-              <span key={li} className="block">
-                {line.split(" ").map((w, wi) => {
-                  const active = k === wordIndex;
-                  k++;
-                  return (
-                    <span key={wi}>
-                      {wi > 0 && " "}
-                      <span style={active ? activeStyle : undefined}>{w}</span>
-                    </span>
-                  );
-                })}
-              </span>
-            ));
-          })()}
+      {editing ? (
+        <div
+          ref={editRef}
+          className="min-w-2 outline-none select-text"
+          contentEditable
+          suppressContentEditableWarning
+          onBlur={commitText}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              commitText();
+            }
+            e.stopPropagation();
+          }}
+        >
+          {cue.text}
+        </div>
+      ) : wordIndex < 0 ? (
+        ov.text
+      ) : (
+        (() => {
+          let k = 0;
+          return ov.text.split("\n").map((line, li) => (
+            <span key={li} className="block">
+              {line.split(" ").map((w, wi) => {
+                const active = k === wordIndex;
+                k++;
+                return (
+                  <span key={wi}>
+                    {wi > 0 && " "}
+                    <span style={active ? activeStyle : undefined}>{w}</span>
+                  </span>
+                );
+              })}
+            </span>
+          ));
+        })()
+      )}
     </div>
   );
 }

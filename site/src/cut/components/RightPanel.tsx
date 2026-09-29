@@ -265,6 +265,11 @@ export function RightPanel() {
     }
     if (hasEditContent) return;
     const s = useEditor.getState();
+    // A cue selection deliberately has no RightPanel content (it's edited on
+    // the stage or the Subtitles panel instead) — same reasoning as
+    // transitionsPanelOpen above, just without a dedicated flag to gate on.
+    // Falling back here would silently steal the selection right back.
+    if (s.selection?.kind === "cue") return;
     const t = s.currentTime;
     const onMain = s.clips.find((c) => c.track === 0 && c.start <= t && t < c.start + clipLen(c));
     if (onMain) {
