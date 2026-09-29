@@ -2,7 +2,7 @@ import { DEPCUT_CANONICAL } from "@/cut/lib/hosts";
 import { getObject } from "@/cut/server/cloud/r2";
 import { extractYoutubeVideoId } from "@/lib/marketplace/url-import";
 import { prisma } from "@/lib/prisma";
-import { notifyTelegram, notifyTelegramWithMedia } from "@/lib/telegram/notify";
+import { notifyTelegram, notifyTelegramWithMedia, type TelegramInlineKeyboard } from "@/lib/telegram/notify";
 
 // Telegram's HTML parse mode reads these five characters as markup — every
 // field pulled from a submission (title, script, an edit code that's really
@@ -68,6 +68,7 @@ export async function tryPromoteSubmission(submissionId: string): Promise<void> 
   const submitterName = submission.user.displayName || submission.user.name || submission.user.email;
   const now = new Date();
   const siteOrigin = process.env.VERCEL ? DEPCUT_CANONICAL : "http://localhost:3000";
+  const reviewUrl = `${siteOrigin}/admin/submissions?id=${submission.id}`;
 
   const lines = [
     "🆕 New Submission Pending Review",
@@ -104,10 +105,11 @@ export async function tryPromoteSubmission(submissionId: string): Promise<void> 
     "",
     "Status: ⏳ Pending",
     "",
-    `👉 Review it: ${htmlLink("click here", `${siteOrigin}/admin/submissions?id=${submission.id}`)}`,
+    `👉 Review it: ${htmlLink("click here", reviewUrl)}`,
   );
 
   const text = lines.join("\n");
+  const replyMarkup: TelegramInlineKeyboard = [[{ text: "Review it", url: reviewUrl }]];
   // A project-linked submission (submission.projectId) has no uploaded
   // thumbnail asset — the editor project itself is what's under review —
   // so only an upload-flow submission has bytes here to attach.
@@ -116,9 +118,15 @@ export async function tryPromoteSubmission(submissionId: string): Promise<void> 
   if (photo) {
     const data = new Uint8Array(new ArrayBuffer(photo.bytes.byteLength));
     data.set(photo.bytes);
-    await notifyTelegramWithMedia("submission", text, [{ contentType: photo.mime, data }], "HTML");
+    await notifyTelegramWithMedia(
+      "submission",
+      text,
+      [{ contentType: photo.mime, data }],
+      "HTML",
+      replyMarkup
+    );
   } else {
-    await notifyTelegram("submission", text, "HTML");
+    await notifyTelegram("submission", text, "HTML", replyMarkup);
   }
 }
 

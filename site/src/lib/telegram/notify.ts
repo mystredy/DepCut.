@@ -66,6 +66,11 @@ async function logIfRejected(event: TelegramNotificationEvent, chatId: string, r
   console.error(`[telegram] ${event} -> ${chatId} rejected (${res.status}):`, body?.description ?? body);
 }
 
+// A row of tappable buttons under the message — every entry here is a URL
+// button (Telegram's other kinds all round-trip through the bot's own
+// callback handler, which nothing here runs), one row per array entry.
+export type TelegramInlineKeyboard = { text: string; url: string }[][];
+
 // Best-effort admin alert, fanned out to every destination configured at
 // /admin/telegram-bot/settings — the admin, group, and channel, all set on
 // the bot's own credentials (SocialAppConfig) — all of them, not a choice
@@ -74,7 +79,8 @@ async function logIfRejected(event: TelegramNotificationEvent, chatId: string, r
 export async function notifyTelegram(
   event: TelegramNotificationEvent,
   text: string,
-  parseMode?: "HTML"
+  parseMode?: "HTML",
+  replyMarkup?: TelegramInlineKeyboard
 ): Promise<void> {
   try {
     const targets = await resolveTelegramTargets(event);
@@ -83,7 +89,12 @@ export async function notifyTelegram(
     await Promise.all(
       targets.destinations.map((chatId) =>
         fetch(`https://api.telegram.org/bot${targets.botToken}/sendMessage`, {
-          body: JSON.stringify({ chat_id: chatId, text, ...(parseMode ? { parse_mode: parseMode } : {}) }),
+          body: JSON.stringify({
+            chat_id: chatId,
+            text,
+            ...(parseMode ? { parse_mode: parseMode } : {}),
+            ...(replyMarkup ? { reply_markup: { inline_keyboard: replyMarkup } } : {}),
+          }),
           headers: { "Content-Type": "application/json" },
           method: "POST",
         }).then((res) => logIfRejected(event, chatId, res))
@@ -105,13 +116,18 @@ export type TelegramMedia = { data: Uint8Array<ArrayBuffer>; contentType: string
 // Telegram can't fetch a preview from an admin-authed route, so the bytes
 // ride the request itself. Falls back to notifyTelegram when there's no
 // media to attach.
+// replyMarkup only reaches sendPhoto — a media *group* has no single message
+// for Telegram to attach buttons to, and the API rejects reply_markup there.
+// A caller sending several images alongside buttons doesn't exist yet; if
+// one does, the buttons need their own follow-up sendMessage instead.
 export async function notifyTelegramWithMedia(
   event: TelegramNotificationEvent,
   text: string,
   media: TelegramMedia[],
-  parseMode?: "HTML"
+  parseMode?: "HTML",
+  replyMarkup?: TelegramInlineKeyboard
 ): Promise<void> {
-  if (media.length === 0) return notifyTelegram(event, text, parseMode);
+  if (media.length === 0) return notifyTelegram(event, text, parseMode, replyMarkup);
   try {
     const targets = await resolveTelegramTargets(event);
     if (!targets) return;
@@ -122,7 +138,7 @@ export async function notifyTelegramWithMedia(
     await Promise.all(
       targets.destinations.map((chatId) =>
         (media.length === 1
-          ? sendPhoto(targets.botToken, chatId, media[0], caption, parseMode)
+          ? sendPhoto(targets.botToken, chatId, media[0], caption, parseMode, replyMarkup)
           : sendMediaGroup(targets.botToken, chatId, media, caption, parseMode)
         ).then((res) => logIfRejected(event, chatId, res))
       )
@@ -139,12 +155,14 @@ function sendPhoto(
   chatId: string,
   photo: TelegramMedia,
   caption: string,
-  parseMode?: "HTML"
+  parseMode?: "HTML",
+  replyMarkup?: TelegramInlineKeyboard
 ) {
   const form = new FormData();
   form.append("chat_id", chatId);
   form.append("caption", caption);
   if (parseMode) form.append("parse_mode", parseMode);
+  if (replyMarkup) form.append("reply_markup", JSON.stringify({ inline_keyboard: replyMarkup }));
   form.append("photo", new Blob([photo.data], { type: photo.contentType }), "attachment");
   return fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, { body: form, method: "POST" });
 }
