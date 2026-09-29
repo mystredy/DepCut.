@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 
+import type { Prisma } from "@/generated/prisma/client";
 import { runExportJob } from "@/cut/worker/exportJob";
 import { runHlsJob } from "@/cut/worker/hlsJob";
+import { runImportUrlJob } from "@/cut/worker/importUrlJob";
 import { prisma, type ClaimedJob } from "@/cut/worker/db";
 import type { RenderHandle } from "@/cut/server/exportPipeline";
 import { ensureRenderToolPath } from "@/cut/server/cloud/toolPath";
@@ -22,12 +24,16 @@ export const maxDuration = 300;
 // interval-based progress/cancellation watching for a bounded one-job-per-
 // invocation run cheap enough to just retry on the next tick.
 //
-// "export" and "import_url" are deliberately NOT claimed here: real user
-// exports already succeed today via the browser's own WebCodecs render
-// (cloud/jobs.ts's exportClientPresign/exportClientComplete), and import_url
-// needs yt-dlp, which isn't vendored for this runtime. Both still count
-// toward the stuck-job alert below so an admin sees the whole picture.
-const FALLBACK_KINDS = ["preview", "card", "hls"] as const;
+// "export" is deliberately NOT claimed here: real user exports already
+// succeed today via the browser's own WebCodecs render (cloud/jobs.ts's
+// exportClientPresign/exportClientComplete). It still counts toward the
+// stuck-job alert below so an admin sees the whole picture.
+//
+// import_url IS claimed — urlDownload.ts's yt-dlp spawn now resolves from
+// ensureRenderToolPath's PATH (the standalone yt-dlp_linux build, same fetch-
+// into-/tmp trick as ffmpeg/ffprobe below), so the worker's own import
+// pipeline (worker/importUrlJob.ts) runs here unmodified.
+const FALLBACK_KINDS = ["preview", "card", "hls", "import_url"] as const;
 const ALL_KINDS = ["preview", "card", "hls", "import_url", "export"] as const;
 
 // A cron tick that claims and runs a single job drains a backlog at one job
@@ -78,8 +84,19 @@ async function claimNext(): Promise<ClaimedJob | null> {
 }
 
 async function runOne(job: ClaimedJob): Promise<void> {
-  const handle: RenderHandle = { tmpDir: "", outPath: "", progress: 0, log: [] };
   try {
+    if (job.kind === "import_url") {
+      // No live watcher here to cancel mid-run (unlike the worker's own
+      // loop) — a cron invocation always runs an import to completion or
+      // lets the function's own timeout end it.
+      const result = await runImportUrlJob(job, () => false);
+      await prisma.cutRenderJob.updateMany({
+        where: { id: job.id, state: "running" },
+        data: { state: "done", progress: 1, result: result as unknown as Prisma.InputJsonValue },
+      });
+      return;
+    }
+    const handle: RenderHandle = { tmpDir: "", outPath: "", progress: 0, log: [] };
     const { outputKey, outName } =
       job.kind === "hls" ? await runHlsJob(job, handle) : await runExportJob(job, handle);
     await prisma.cutRenderJob.updateMany({
@@ -130,7 +147,7 @@ async function alertIfStuck(): Promise<void> {
   const auto = new Set<string>(FALLBACK_KINDS);
   const lines = [...byKind.entries()].map(([kind, { count, oldest }]) => {
     const ageMin = Math.round((Date.now() - oldest.getTime()) / 60_000);
-    const note = auto.has(kind) ? "" : " — not auto-processed, needs yt-dlp/browser path";
+    const note = auto.has(kind) ? "" : " — not auto-processed, resolved via the browser's own export";
     return `• ${kind} x${count}, oldest ${ageMin}min${note}`;
   });
   await notifyTelegram(

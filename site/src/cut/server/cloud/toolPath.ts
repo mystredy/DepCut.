@@ -19,6 +19,11 @@ const TOOLS_DIR = path.join(os.tmpdir(), "depcut-render-tools");
 const TOOLS = [
   { key: "tools/ffmpeg-static/ffmpeg", name: "ffmpeg" },
   { key: "tools/ffmpeg-static/ffprobe", name: "ffprobe" },
+  // The standalone PyInstaller build (yt-dlp/yt-dlp's own "yt-dlp_linux"
+  // release asset) — no Python needed, same reasoning as ffmpeg-static
+  // above: nothing on this runtime's PATH otherwise. urlDownload.ts spawns
+  // it by bare name, same as ffmpeg/ffprobe.
+  { key: "tools/yt-dlp/yt-dlp", name: "yt-dlp" },
 ];
 
 let ensured: Promise<void> | null = null;
